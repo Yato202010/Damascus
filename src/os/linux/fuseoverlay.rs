@@ -170,22 +170,22 @@ impl Filesystem for FuseOverlayFs {
                     },
                     unistd::{fexecve, fork, write, ForkResult},
                 };
-                use std::os::fd::IntoRawFd;
                 // init embeded fuse overlay version 1.10 or later since [ 1.7 , 1.9 ] doesn't support mounting on top
                 // of the base directory
                 let byte = include_bytes!("../../../vendor/fuse-overlayfs/fuse-overlayfs");
                 let mem = memfd_create(
-                    &CString::new("fuse-overlayfs-1_10")?,
+                    &CString::new("fuse-overlayfs")?,
                     MemFdCreateFlag::empty(),
-                )?.into_raw_fd();
-                write(mem, byte)?;
+                )?;
+                write(&mem, byte)?;
                 let env: Vec<CString> = vec![];
                 match unsafe { fork() } {
                     Ok(ForkResult::Parent { child, .. }) => {
                         waitpid(child, None)?;
                     }
                     Ok(ForkResult::Child) => {
-                        fexecve(mem, options, &env)?;
+                        use std::os::fd::AsRawFd;
+                        fexecve(mem.as_raw_fd(), options, &env)?;
                     }
                     Err(_) => {
                         return Err(
