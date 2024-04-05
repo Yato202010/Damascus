@@ -1,0 +1,66 @@
+[package]
+name = "damascus"
+version = "0.0.2"
+edition = "2021"
+rust-version = "1.66.1"
+authors = ["Yato202010"]
+description = "filesystem utility crate for the Flamberg mod manager stack"
+license-file = "LICENSE"
+resolver = "2"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+# static eval
+cfg-if = "1.0"
+
+# Logs
+tracing = "0.1"
+
+# Test
+temp_testdir = "0.2"
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows = { version = "0.54", features = [
+  "Win32_Storage_FileSystem",
+  "Win32_Foundation",
+  "Win32_System_WindowsProgramming",
+  "Win32_Security",
+] }
+widestring = "1.0"
+
+[target.'cfg(target_family="unix")'.dependencies]
+nix = { version = "0.27", features = [
+  "user",
+  "mount",
+  "sched",
+  "fs",
+  "process",
+] }
+
+[dev-dependencies]
+colored = "2.0"
+
+[features]
+default = ["overlayfs", "fuse-overlayfs"]
+overlayfs = []
+fuse-overlayfs = []
+fuse-overlayfs-vendored = []
+
+[profile.release]
+lto = true
+opt-level = "s"
+strip = true
+codegen-units = 1
+
+[profile.dev]
+lto = "thin"
+
+[profile.bench]
+lto = true
+opt-level = "s"
+
+[[test]]
+name = "test-mount"
+path = "tests/test_mount.rs"
+harness = false
