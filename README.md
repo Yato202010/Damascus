@@ -6,11 +6,10 @@ with filesystem for the Flamberg mod manager stack
 ## Supported system
 
 | System | Status      | Available Handle          |
-| ------ | ----------- | ------------------------- | --- | --- |
+| ------ | ----------- | ------------------------- |
 | Window | Unsupported | /                         |
 | Linux  | Supported   | OverlayFs , FuseOverlayFs |
 | MacOS  | Unsupported | /                         |
-| <!--   | Android     | N/D                       | /   | --> |
 
 ## FAQ
 
