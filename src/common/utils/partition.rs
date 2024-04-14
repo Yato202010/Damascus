@@ -2,7 +2,7 @@ use std::path::Path;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 /// Representation of a partition unique identifier
-pub enum Partition {
+pub enum PartitionID {
     #[cfg(target_family = "unix")]
     /// partition dev id
     Id(u64),
@@ -12,21 +12,21 @@ pub enum Partition {
     Invalid,
 }
 
-impl<P> From<P> for Partition
+impl<P> From<P> for PartitionID
 where
     P: AsRef<Path>,
 {
     #[inline]
-    fn from(path: P) -> Partition {
+    fn from(path: P) -> PartitionID {
         let path = path.as_ref();
         if !path.exists() {
-            return Partition::Invalid;
+            return PartitionID::Invalid;
         }
 
         cfg_if::cfg_if! {
             if #[cfg(target_family="unix")] {
                 use std::os::unix::fs::MetadataExt;
-                Partition::Id(std::fs::metadata(path)
+                PartitionID::Id(std::fs::metadata(path)
                     .expect("unable to get metadata")
                     .dev())
             } else if #[cfg(target_os = "windows")] {
@@ -70,7 +70,7 @@ where
                             None,
                             None
                         ).unwrap();
-                    Partition::Id(*lpvolumeserialnumber)
+                    PartitionID::Id(*lpvolumeserialnumber)
                 }
 
                 // TODO : move to safe alternative once into rust stable
@@ -94,9 +94,9 @@ mod tests {
     fn from() {
         cfg_if::cfg_if! {
             if #[cfg(target_family="unix")] {
-                let _ = Partition::from("/tmp/");
+                let _ = PartitionID::from("/tmp/");
             } else if #[cfg(target_os = "windows")] {
-                let _ = Partition::from("C://User");
+                let _ = PartitionID::from("C://User");
             }
         }
     }

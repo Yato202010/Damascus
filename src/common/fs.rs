@@ -1,4 +1,4 @@
-use crate::Partition;
+use crate::PartitionID;
 use std::{
     io,
     path::{Path, PathBuf},
@@ -23,7 +23,7 @@ pub trait Filesystem {
     /// Retreive the partition Identifier
     /// "dev id" on unix and "volume serial number" on windows
     /// if the partition is not mounted it will return None
-    fn partition(&self) -> Option<&Partition>;
+    fn id(&self) -> Option<&PartitionID>;
 
     /// Retreive the mount point as PathBuf
     fn target(&self) -> Result<PathBuf, io::Error>;
@@ -38,7 +38,7 @@ pub trait Filesystem {
 
     /// Check if the partition is mounted
     fn mounted(&self) -> bool {
-        self.partition().is_some()
+        self.id().is_some()
     }
 }
 

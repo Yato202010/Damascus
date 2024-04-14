@@ -13,7 +13,7 @@ use std::{
 use crate::{
     common::fs::Filesystem,
     os::{AsCString, AsPath},
-    Partition, StackableFilesystem,
+    PartitionID, StackableFilesystem,
 };
 use cfg_if::cfg_if;
 
@@ -26,7 +26,7 @@ pub struct FuseOverlayFs {
     upper: Option<PathBuf>,
     work: Option<PathBuf>,
     target: CString,
-    partition: Option<Partition>,
+    id: Option<PartitionID>,
     drop: bool,
 }
 
@@ -52,7 +52,7 @@ impl FuseOverlayFs {
             upper: upper.map(|x| x.into()),
             work: work.map(|x| x.into()),
             target: target.as_ref().as_cstring(),
-            partition: None,
+            id: None,
             drop,
         })
     }
@@ -78,7 +78,7 @@ impl FuseOverlayFs {
             upper: None,
             work: None,
             target: target.as_ref().as_cstring(),
-            partition: None,
+            id: None,
             drop: true,
         })
     }
@@ -99,7 +99,7 @@ impl FuseOverlayFs {
         C: AsRef<Path>,
         D: AsRef<Path>,
     {
-        if Partition::from(upper.as_ref()) != Partition::from(work.as_ref()) {
+        if PartitionID::from(upper.as_ref()) != PartitionID::from(work.as_ref()) {
             return Err(io::Error::new(
                 io::ErrorKind::Other,
                 "fuse-overlay FileSystem need the upper dir and the work dir to be on the same FileSystem",
@@ -110,7 +110,7 @@ impl FuseOverlayFs {
             upper: Some(upper.as_ref().to_path_buf()),
             work: Some(work.as_ref().to_path_buf()),
             target: target.as_ref().as_cstring(),
-            partition: None,
+            id: None,
             drop: true,
         })
     }
@@ -122,7 +122,7 @@ impl FuseOverlayFs {
 
     #[inline]
     pub fn set_work(&mut self, work: PathBuf) -> Result<(), io::Error> {
-        if Partition::from(self.upper.clone().unwrap()) != Partition::from(&work) {
+        if PartitionID::from(self.upper.clone().unwrap()) != PartitionID::from(&work) {
             return Err(io::Error::new(
                 io::ErrorKind::Other,
                 "fuse-overlay FileSystem need the upper dir and the work dir to be on the same FileSystem",
@@ -136,7 +136,7 @@ impl FuseOverlayFs {
 impl Filesystem for FuseOverlayFs {
     #[inline]
     fn mount(&mut self) -> Result<PathBuf, io::Error> {
-        if matches!(self.partition,Some(x) if x == Partition::from(self.target.as_path())) {
+        if matches!(self.id,Some(x) if x == PartitionID::from(self.target.as_path())) {
             debug!("Damascus: partition already mounted");
             return Ok(PathBuf::from(&self.target.as_path()));
         }
@@ -218,13 +218,13 @@ impl Filesystem for FuseOverlayFs {
             }
         );
 
-        self.partition = Some(Partition::from(&self.target.as_path()));
+        self.id = Some(PartitionID::from(&self.target.as_path()));
         Ok(self.target.as_path().to_path_buf())
     }
 
     #[inline]
     fn unmount(&mut self) -> Result<(), io::Error> {
-        if matches!(self.partition,Some(x) if x == Partition::from(self.target.as_path())) {
+        if matches!(self.id,Some(x) if x == PartitionID::from(self.target.as_path())) {
             let child = Command::new("fusermount")
                 .args([
                     "-z",
@@ -242,7 +242,7 @@ impl Filesystem for FuseOverlayFs {
                     "Failed to unmount vfs",
                 ));
             }
-            self.partition = None;
+            self.id = None;
         }
         Ok(())
     }
@@ -258,8 +258,8 @@ impl Filesystem for FuseOverlayFs {
     }
 
     #[inline]
-    fn partition(&self) -> Option<&Partition> {
-        self.partition.as_ref()
+    fn id(&self) -> Option<&PartitionID> {
+        self.id.as_ref()
     }
 
     #[inline]
@@ -269,7 +269,7 @@ impl Filesystem for FuseOverlayFs {
 
     #[inline]
     fn set_target(&mut self, target: &dyn AsRef<Path>) -> Result<(), io::Error> {
-        if self.partition.is_some() {
+        if self.id.is_some() {
             return Err(io::Error::new(
                 io::ErrorKind::Other,
                 "mount point cannot be change when the FileSystem is mounted",
@@ -301,7 +301,7 @@ impl StackableFilesystem for FuseOverlayFs {
 
     #[inline]
     fn set_lower(&mut self, lower: Vec<PathBuf>) -> Result<(), io::Error> {
-        if self.partition.is_some() {
+        if self.id.is_some() {
             return Err(io::Error::new(
                 io::ErrorKind::Other,
                 "upper layer cannot be change when the FileSystem is mounted",
@@ -318,12 +318,12 @@ impl StackableFilesystem for FuseOverlayFs {
 
     #[inline]
     fn set_upper(&mut self, upper: PathBuf) -> Result<(), io::Error> {
-        if Partition::from(&upper) != Partition::from(self.work.clone().unwrap()) {
+        if PartitionID::from(&upper) != PartitionID::from(self.work.clone().unwrap()) {
             return Err(io::Error::new(
                 io::ErrorKind::Other,
                 "fuse-overlay FileSystem need the upper dir and the work dir to be on the same FileSystem",
             ));
-        } else if self.partition.is_some() {
+        } else if self.id.is_some() {
             return Err(io::Error::new(
                 io::ErrorKind::Other,
                 "upper layer cannot be change when the FileSystem is mounted",

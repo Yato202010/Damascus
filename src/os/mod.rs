@@ -7,10 +7,7 @@ cfg_if::cfg_if! {
     if #[cfg(target_os = "linux")] {
         mod linux;
         use std::os::unix::ffi::OsStrExt;
-        #[cfg(feature = "overlayfs")]
-        pub use linux::overlay;
-        #[cfg(feature = "fuse-overlayfs")]
-        pub use linux::fuseoverlay;
+        pub use linux::*;
     } else if #[cfg(target_os = "windows")] {
         mod windows;
         pub(crate) trait OsStrExt {

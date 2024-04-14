@@ -1,4 +1,8 @@
 #[cfg(any(feature = "fuse-overlayfs", feature = "fuse-overlayfs-vendored"))]
-pub mod fuseoverlay;
+mod fuseoverlay;
+#[cfg(any(feature = "fuse-overlayfs", feature = "fuse-overlayfs-vendored"))]
+pub use fuseoverlay::FuseOverlayFs;
 #[cfg(feature = "overlayfs")]
-pub mod overlay;
+mod overlay;
+#[cfg(feature = "overlayfs")]
+pub use overlay::OverlayFs;
