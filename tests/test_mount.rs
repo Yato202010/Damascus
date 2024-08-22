@@ -1,7 +1,9 @@
 #[cfg(target_os = "linux")]
+#[allow(dead_code)]
 mod linux;
 
 #[cfg(target_os = "windows")]
+#[allow(dead_code)]
 mod windows;
 
 #[cfg(target_os = "linux")]
@@ -20,6 +22,7 @@ struct TestRunner {
     current_test: usize,
 }
 
+#[allow(dead_code)]
 impl TestRunner {
     fn len(&self) -> usize {
         self.tests.len()

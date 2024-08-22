@@ -14,6 +14,7 @@ use nix::{
     unistd::getuid,
 };
 
+#[allow(unused_imports)]
 use crate::register_tests;
 
 #[cfg(feature = "fuse-overlayfs")]

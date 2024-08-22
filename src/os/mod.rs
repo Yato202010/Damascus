@@ -7,9 +7,12 @@ cfg_if::cfg_if! {
     if #[cfg(target_os = "linux")] {
         mod linux;
         use std::os::unix::ffi::OsStrExt;
+        #[allow(unused_imports)]
         pub use linux::*;
     } else if #[cfg(target_os = "windows")] {
         mod windows;
+        #[allow(unused_imports)]
+        pub use windows::*;
         pub(crate) trait OsStrExt {
             fn from_bytes(b: &[u8]) -> &Self;
             fn as_bytes(&self) -> &[u8];
@@ -28,6 +31,8 @@ cfg_if::cfg_if! {
     } else if #[cfg(target_os = "macos")] {
         mod macos;
         use std::os::unix::OsStrExt;
+        #[allow(unused_imports)]
+        pub use macos::*;
     }
 }
 

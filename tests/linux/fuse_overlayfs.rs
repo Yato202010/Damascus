@@ -3,10 +3,7 @@ use crate::skip;
 use super::{execute_test, read_only_test, read_test, write_test};
 use damascus::{Filesystem, FuseOverlayFs};
 use nix::unistd::geteuid;
-use std::{
-    fs::create_dir_all,
-    io::{self, Write},
-};
+use std::fs::create_dir_all;
 use temp_testdir::TempDir;
 
 pub fn init_fuse_overlay_r() {
