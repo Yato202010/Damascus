@@ -7,6 +7,8 @@ use std::{
     sync::Once,
 };
 
+pub fn register_test() {}
+
 fn write_test(path: &Path) {
     // Verify write.
     fs::OpenOptions::new()
