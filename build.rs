@@ -18,6 +18,7 @@ fn main() {
 }
 
 #[inline]
+#[allow(dead_code)]
 fn run<S: AsRef<OsStr> + Debug>(err: &str, op: S, dir: &PathBuf) {
     use std::process::Command;
     Command::new(&op)

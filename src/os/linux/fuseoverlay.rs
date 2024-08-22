@@ -3,23 +3,22 @@
 * https://github.com/tailhook/libmount/blob/master/src/overlay.rs
 */
 
+use cfg_if::cfg_if;
 use std::{
     ffi::CString,
     io,
     path::{Path, PathBuf},
     process::{Command, Stdio},
 };
+use tracing::{debug, error};
 
 use crate::{
     common::fs::Filesystem,
     os::{AsCString, AsPath},
     PartitionID, StackableFilesystem,
 };
-use cfg_if::cfg_if;
 
-use tracing::{debug, error};
-
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 /// Fuse overlay filesystem handle
 pub struct FuseOverlayFs {
     lower: Vec<PathBuf>,
@@ -154,7 +153,7 @@ impl Filesystem for FuseOverlayFs {
             options.push_str(",workdir=");
             options.push_str(w.to_str().unwrap());
         }
-        let options = &[
+        let args = &[
             CString::new("")?,
             CString::new("-o")?,
             CString::new(options)?,
@@ -185,7 +184,7 @@ impl Filesystem for FuseOverlayFs {
                     }
                     Ok(ForkResult::Child) => {
                         use std::os::fd::AsRawFd;
-                        fexecve(mem.as_raw_fd(), options, &env)?;
+                        fexecve(mem.as_raw_fd(), args, &env)?;
                     }
                     Err(_) => {
                         return Err(
@@ -197,7 +196,7 @@ impl Filesystem for FuseOverlayFs {
                     }
                 }
             } else {
-                let options: Vec<&str> = options.iter().map(|x| x.to_str().unwrap()).collect();
+                let options: Vec<&str> = args.iter().map(|x| x.to_str().unwrap()).collect();
                 let output = Command::new("fuse-overlayfs")
                     .args(options)
                     .spawn()
@@ -340,7 +339,7 @@ impl Drop for FuseOverlayFs {
         if self.drop {
             if let Err(err) = self.unmount() {
                 error!(
-                    "Damascus: unable to unmount overlay at {:?} because : {}",
+                    "Damascus: unable to unmount fuse overlay at {:?} because : {}",
                     self.target, err
                 )
             }

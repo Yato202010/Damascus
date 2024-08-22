@@ -22,7 +22,7 @@ use nix::{
 };
 use tracing::{debug, error};
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 /// Kernel overlay filesystem handle
 pub struct OverlayFs {
     lower: Vec<PathBuf>,

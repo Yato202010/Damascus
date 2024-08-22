@@ -43,6 +43,7 @@ pub trait Filesystem {
 }
 
 /// Common trait for all stackable/union/overlay filesystem handle
+#[allow(dead_code)]
 pub trait StackableFilesystem: Filesystem {
     /// Retreive list of lower layer
     fn lower(&self) -> Vec<&Path>;
