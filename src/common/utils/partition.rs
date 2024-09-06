@@ -1,8 +1,4 @@
-use std::{
-    fs::File,
-    io::{self, BufRead},
-    path::Path,
-};
+use std::path::Path;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 /// Representation of a partition unique identifier
