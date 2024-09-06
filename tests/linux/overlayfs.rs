@@ -6,21 +6,6 @@ use nix::unistd::geteuid;
 use std::fs::create_dir_all;
 use temp_testdir::TempDir;
 
-pub fn init_overlay_r() {
-    let tmp = TempDir::default().to_path_buf();
-    let _ = OverlayFs::readonly([tmp.join("lower")].iter(), tmp.join("mount"));
-}
-
-pub fn init_overlay_rw() {
-    let tmp = TempDir::default().to_path_buf();
-    let _ = OverlayFs::writable(
-        [tmp.join("lower")].iter(),
-        tmp.join("upper"),
-        tmp.join("work"),
-        tmp.join("mount"),
-    );
-}
-
 pub fn mount_overlay_r() {
     if !geteuid().is_root() {
         setup_namespaces();

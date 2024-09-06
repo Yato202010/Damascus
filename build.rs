@@ -15,6 +15,14 @@ fn main() {
         op = "make";
         run(err, op, &d)
     }
+    #[cfg(feature = "cicpoffs-vendored")]
+    {
+        let d = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("vendor/cicpoffs/");
+        if !d.exists() {
+            panic!("cicpoffs submodule is not present cicpoffs-vendored cannot be used")
+        }
+        run("Unable to Compile cicpoffs", "make", &d)
+    }
 }
 
 #[inline]

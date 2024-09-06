@@ -57,3 +57,7 @@ pub trait StackableFilesystem: Filesystem {
     /// Set upper layer
     fn set_upper(&mut self, upper: PathBuf) -> Result<(), io::Error>;
 }
+
+/// Common trait for all case insensitive filesystem handle
+#[allow(dead_code)]
+pub trait CaseInsensitive: Filesystem {}

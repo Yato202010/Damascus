@@ -1,3 +1,4 @@
+use core::panic;
 use std::{
     fs::{self, File},
     io::{self, Read, Write},
@@ -25,30 +26,16 @@ pub mod overlayfs;
 
 pub fn register_test() {
     #[cfg(feature = "fuse-overlayfs")]
-    use crate::linux::fuse_overlayfs::{
-        init_fuse_overlay_r, init_fuse_overlay_rw, mount_fuse_overlay_r, mount_fuse_overlay_rw,
-        mount_fuse_overlay_rw_on_lower,
-    };
-    #[cfg(feature = "overlayfs")]
-    use crate::linux::overlayfs::{
-        init_overlay_r, init_overlay_rw, mount_overlay_r, mount_overlay_rw,
-        mount_overlay_rw_on_lower,
-    };
-    #[cfg(feature = "fuse-overlayfs")]
     register_tests!(
-        init_fuse_overlay_r,
-        init_fuse_overlay_rw,
-        mount_fuse_overlay_r,
-        mount_fuse_overlay_rw,
-        mount_fuse_overlay_rw_on_lower
+        fuse_overlayfs::mount_fuse_overlay_r,
+        fuse_overlayfs::mount_fuse_overlay_rw,
+        fuse_overlayfs::mount_fuse_overlay_rw_on_lower
     );
     #[cfg(feature = "overlayfs")]
     register_tests!(
-        init_overlay_r,
-        init_overlay_rw,
-        mount_overlay_r,
-        mount_overlay_rw,
-        mount_overlay_rw_on_lower
+        overlayfs::mount_overlay_r,
+        overlayfs::mount_overlay_rw,
+        overlayfs::mount_overlay_rw_on_lower
     );
 }
 
@@ -89,10 +76,11 @@ fn execute_test(path: &Path) {
 
 fn read_only_test(path: &Path) {
     // EROFS: Read-only file system
-    assert_eq!(
-        { EROFS },
-        File::create(path).unwrap_err().raw_os_error().unwrap()
-    );
+    let err = File::create(path);
+    if err.is_ok() {
+        panic!("filesystem is rw, ro was expected")
+    }
+    assert_eq!({ EROFS }, err.unwrap_err().raw_os_error().unwrap());
 }
 
 static SCRIPT_CONTENTS: &[u8] = b"#!/bin/sh

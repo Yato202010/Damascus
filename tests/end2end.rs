@@ -40,7 +40,7 @@ impl TestRunner {
         let mut failed = 0;
         while self.current_test < self.tests.len() {
             let (name, func) = &self.tests[self.current_test];
-            print!("test test_mount::{} ... ", name);
+            print!("test end2end::{} ... ", name);
             let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(func));
 
             if self.filtered.contains(&self.current_test) {
@@ -90,9 +90,9 @@ macro_rules! skip {
 
 #[macro_export]
 macro_rules! register_tests {
-    ( $($test_fn:ident),* ) => {{
+    ( $($fn_path:path$(,)?)* ) => {{
          $(
-            unsafe { $crate::TEST_RUNNER.register_test(stringify!($test_fn),$test_fn) }
+            unsafe { $crate::TEST_RUNNER.register_test(stringify!($fn_path),$fn_path) }
          )*
     }};
 }

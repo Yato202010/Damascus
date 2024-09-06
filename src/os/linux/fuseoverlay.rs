@@ -46,8 +46,15 @@ impl FuseOverlayFs {
         C: Into<PathBuf>,
         D: AsRef<Path>,
     {
+        let lower: Vec<PathBuf> = lower.map(|x| x.to_path_buf()).collect();
+        if lower.len() < 2 {
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                "overlay FileSystem need a least 2 lower directory to work",
+            ));
+        }
         Ok(Self {
-            lower: lower.map(|x| x.to_path_buf()).collect(),
+            lower,
             upper: upper.map(|x| x.into()),
             work: work.map(|x| x.into()),
             target: target.as_ref().as_cstring(),
@@ -190,7 +197,7 @@ impl Filesystem for FuseOverlayFs {
                         return Err(
                             io::Error::new(
                                 io::ErrorKind::PermissionDenied,
-                                "Failed to unmount vfs"
+                                "Failed to mount vfs"
                             )
                         )
                     }
