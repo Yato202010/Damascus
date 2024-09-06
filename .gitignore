@@ -4,3 +4,4 @@ NOTE.md
 /src/os/unix/overlaybak.rs
 /.fleet
 config.log
+.idea
