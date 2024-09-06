@@ -41,8 +41,11 @@ nix = { version = "0.29", features = [
 [dev-dependencies]
 colored = "2.1"
 
+[build-dependencies]
+md5 = "0.7.0"
+
 [features]
-default = ["overlayfs", "fuse-overlayfs"]
+default = ["overlayfs", "fuse-overlayfs-vendored"]
 overlayfs = []
 fuse-overlayfs = []
 fuse-overlayfs-vendored = ["fuse-overlayfs"]
