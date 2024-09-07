@@ -7,6 +7,10 @@ use std::fs::create_dir_all;
 use temp_testdir::TempDir;
 
 pub fn mount_overlay_r() {
+    if !OverlayFs::is_availible() {
+        skip!("OverlayFs is not availible");
+        return;
+    }
     if !geteuid().is_root() {
         setup_namespaces();
     }
@@ -25,6 +29,10 @@ pub fn mount_overlay_r() {
 }
 
 pub fn mount_overlay_rw() {
+    if !OverlayFs::is_availible() {
+        skip!("OverlayFs is not availible");
+        return;
+    }
     if !geteuid().is_root() {
         skip!("rw mount can only be tested as root on tmpfs");
         return;
@@ -52,6 +60,10 @@ pub fn mount_overlay_rw() {
 }
 
 pub fn mount_overlay_rw_on_lower() {
+    if !OverlayFs::is_availible() {
+        skip!("OverlayFs is not availible");
+        return;
+    }
     if !geteuid().is_root() {
         skip!("rw mount can only be tested as root on tmpfs");
         return;

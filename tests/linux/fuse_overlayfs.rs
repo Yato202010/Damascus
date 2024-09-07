@@ -7,6 +7,10 @@ use std::fs::create_dir_all;
 use temp_testdir::TempDir;
 
 pub fn mount_fuse_overlay_r() {
+    if !FuseOverlayFs::is_availible() {
+        skip!("OverlayFs is not availible");
+        return;
+    }
     if geteuid().is_root() {
         skip!("fuse mount can't be tested as root");
         return;
@@ -26,6 +30,10 @@ pub fn mount_fuse_overlay_r() {
 }
 
 pub fn mount_fuse_overlay_rw() {
+    if !FuseOverlayFs::is_availible() {
+        skip!("OverlayFs is not availible");
+        return;
+    }
     if geteuid().is_root() {
         skip!("fuse mount can't be tested as root");
         return;
@@ -53,6 +61,10 @@ pub fn mount_fuse_overlay_rw() {
 }
 
 pub fn mount_fuse_overlay_rw_on_lower() {
+    if !FuseOverlayFs::is_availible() {
+        skip!("OverlayFs is not availible");
+        return;
+    }
     if geteuid().is_root() {
         skip!("fuse mount can't be tested as root");
         return;
