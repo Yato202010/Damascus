@@ -42,13 +42,16 @@ nix = { version = "0.29", features = [
 colored = "2.1"
 
 [build-dependencies]
-md5 = "0.7.0"
+cmake = { version = "0.1", optional = true }
+md5 = { version = "0.7.0", optional = true }
 
 [features]
-default = ["overlayfs", "fuse-overlayfs-vendored"]
+default = ["overlayfs", "fuse-overlayfs-vendored", "unionfs-fuse-vendored"]
 overlayfs = []
 fuse-overlayfs = []
-fuse-overlayfs-vendored = ["fuse-overlayfs"]
+fuse-overlayfs-vendored = ["fuse-overlayfs", "md5"]
+unionfs-fuse = []
+unionfs-fuse-vendored = ["unionfs-fuse", "cmake", "md5"]
 
 [profile.release]
 lto = true

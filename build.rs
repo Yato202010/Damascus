@@ -1,16 +1,8 @@
-use std::{
-    ffi::OsStr,
-    fmt::Debug,
-    fs::create_dir_all,
-    path::{self, Path, PathBuf},
-};
-
 fn main() {
     println!("cargo:rerun-if-changed=vendor");
 
     #[cfg(feature = "fuse-overlayfs-vendored")]
     {
-        // cache executable by storing it's hash in the target directory
         let d = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("vendor/fuse-overlayfs/");
         if !d.exists() {
             panic!("fuse-overlayfs submodule is not present fuse-overlayfs-vendored cannot be used")
@@ -19,12 +11,28 @@ fn main() {
         let executable = d.join("fuse-overlayfs");
 
         if !is_cache_valid(&executable) {
-            let mut op = "autogen.sh";
-            run(err, d.join(op), &d);
-            op = "configure";
-            run(err, d.join(op), &d);
-            op = "make";
-            run(err, op, &d);
+            run(err, d.join("autogen.sh"), &d);
+            run(err, d.join("configure"), &d);
+            run(err, "make", &d);
+            cache(&executable);
+        }
+    }
+
+    #[cfg(feature = "unionfs-fuse-vendored")]
+    {
+        let d = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("vendor/unionfs-fuse/");
+        if !d.exists() {
+            panic!("unionfs-fuse submodule is not present unionfs-fuse-vendored cannot be used")
+        }
+        dbg!(&d);
+        let build_d = d.join("build");
+        if !build_d.exists() {
+            std::fs::create_dir(&build_d).unwrap()
+        }
+        let executable = build_d.join("bin/unionfs");
+        if !is_cache_valid(&executable) {
+            use cmake::Config;
+            let _ = Config::new(&d).out_dir(build_d).very_verbose(false).build();
             cache(&executable);
         }
     }
@@ -32,26 +40,27 @@ fn main() {
 
 #[inline]
 #[allow(dead_code)]
-fn run<S: AsRef<OsStr> + Debug>(err: &str, op: S, dir: &PathBuf) {
+fn run<S: AsRef<std::ffi::OsStr> + std::fmt::Debug>(err: &str, op: S, dir: &std::path::PathBuf) {
     use std::process::Command;
     Command::new(&op)
         .current_dir(dir)
         .spawn()
         .unwrap_or_else(|_| panic!("{:?}: {:?} failed", err, op))
-        .wait()
+        .wait_with_output()
         .unwrap();
 }
 
+#[cfg(feature = "md5")]
 const CACHE_DIR: &str = "target/.cache";
 
 #[inline]
-#[allow(dead_code)]
-fn is_cache_valid<S: AsRef<Path> + Debug>(path: S) -> bool {
+#[cfg(feature = "md5")]
+fn is_cache_valid<S: AsRef<std::path::Path> + std::fmt::Debug>(path: S) -> bool {
     let path = path.as_ref();
     if !path.exists() {
         return false;
     }
-    let cache = Path::new(CACHE_DIR).join(path.file_name().unwrap());
+    let cache = std::path::Path::new(CACHE_DIR).join(path.file_name().unwrap());
     if !cache.exists() {
         return false;
     }
@@ -62,15 +71,15 @@ fn is_cache_valid<S: AsRef<Path> + Debug>(path: S) -> bool {
 }
 
 #[inline]
-#[allow(dead_code)]
-fn cache<S: AsRef<Path> + Debug>(path: S) {
+#[cfg(feature = "md5")]
+fn cache<S: AsRef<std::path::Path> + std::fmt::Debug>(path: S) {
     let path = path.as_ref();
     let buf = std::fs::read(path).unwrap();
     let hash = md5::compute(&buf).0;
-    if !PathBuf::from(CACHE_DIR).exists() {
-        create_dir_all(CACHE_DIR).unwrap();
+    if !std::path::PathBuf::from(CACHE_DIR).exists() {
+        std::fs::create_dir_all(CACHE_DIR).unwrap();
     }
 
-    let cache = Path::new(CACHE_DIR).join(path.file_name().unwrap());
+    let cache = std::path::Path::new(CACHE_DIR).join(path.file_name().unwrap());
     std::fs::write(cache, hash).unwrap();
 }

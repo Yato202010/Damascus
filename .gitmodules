@@ -1,3 +1,6 @@
 [submodule "vendor/fuse-overlayfs"]
 	path = vendor/fuse-overlayfs
 	url = https://github.com/containers/fuse-overlayfs
+[submodule "vendor/unionfs-fuse"]
+	path = vendor/unionfs-fuse
+	url = https://github.com/rpodgorny/unionfs-fuse.git
