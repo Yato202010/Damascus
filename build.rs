@@ -51,10 +51,12 @@ fn run<S: AsRef<std::ffi::OsStr> + std::fmt::Debug>(err: &str, op: S, dir: &std:
 }
 
 #[cfg(feature = "md5")]
+#[allow(dead_code)]
 const CACHE_DIR: &str = "target/.cache";
 
 #[inline]
 #[cfg(feature = "md5")]
+#[allow(dead_code)]
 fn is_cache_valid<S: AsRef<std::path::Path> + std::fmt::Debug>(path: S) -> bool {
     let path = path.as_ref();
     if !path.exists() {
@@ -72,6 +74,7 @@ fn is_cache_valid<S: AsRef<std::path::Path> + std::fmt::Debug>(path: S) -> bool 
 
 #[inline]
 #[cfg(feature = "md5")]
+#[allow(dead_code)]
 fn cache<S: AsRef<std::path::Path> + std::fmt::Debug>(path: S) {
     let path = path.as_ref();
     let buf = std::fs::read(path).unwrap();
