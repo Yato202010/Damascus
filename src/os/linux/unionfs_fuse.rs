@@ -111,12 +111,16 @@ impl Filesystem for UnionFsFuse {
             layer_args.push_str(upper.to_string_lossy().as_ref());
             layer_args.push_str("=rw");
         }
-        let mut options = String::new();
-        options.push_str("cow");
         let args = &[
             CString::new("")?,
             CString::new("-o")?,
-            CString::new(options)?,
+            CString::new("cow")?,
+            CString::new("-o")?,
+            CString::new("direct_io")?,
+            CString::new("-o")?,
+            CString::new("hide_meta_files")?,
+            CString::new("-o")?,
+            CString::new("preserve_branch")?,
             CString::new(layer_args)?,
             self.target.clone(),
         ];
@@ -155,7 +159,7 @@ impl Filesystem for UnionFsFuse {
                     }
                 }
             } else {
-                let options: Vec<&str> = args.iter().map(|x| x.to_str().unwrap()).collect();
+                let options: Vec<&str> = args.iter().skip(1).map(|x| x.to_str().unwrap()).collect();
                 let output = Command::new("unionfs")
                     .args(options)
                     .spawn()
@@ -243,7 +247,7 @@ impl Filesystem for UnionFsFuse {
         {
             return true;
         }
-        Command::new("unionfs-fuse")
+        Command::new("unionfs")
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .status()

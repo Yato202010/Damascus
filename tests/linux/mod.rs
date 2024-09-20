@@ -9,7 +9,7 @@ use std::{
 };
 
 use nix::{
-    libc::EROFS,
+    errno::Errno,
     sched::{unshare, CloneFlags},
     sys::stat::Mode,
     unistd::getuid,
@@ -32,7 +32,7 @@ pub fn register_test() {
     register_tests!(
         // WARN : currently this filesystem return Ernno::PermissionDenierd = 13 instead of
         // Ernno::EROFS = 30 which is clearly wrong but why !?
-        // unionfs_fuse::mount_unionfs_fuse_r,
+        unionfs_fuse::mount_unionfs_fuse_r,
         unionfs_fuse::mount_unionfs_fuse_rw,
         // WARN : mounting on top of lower dir is not permitted for now it freeze
         //unionfs_fuse::mount_unionfs_fuse_rw_on_lower
@@ -92,7 +92,14 @@ fn read_only_test(path: &Path) {
     if err.is_ok() {
         panic!("filesystem is rw, ro was expected")
     }
-    assert_eq!({ EROFS }, err.unwrap_err().raw_os_error().unwrap());
+    let raw_err = err.unwrap_err().raw_os_error().unwrap();
+    assert_eq!(
+        { Errno::EROFS as i32 },
+        raw_err,
+        "expected {} but got {}",
+        Errno::EROFS,
+        Errno::from_raw(raw_err)
+    );
 }
 
 static SCRIPT_CONTENTS: &[u8] = b"#!/bin/sh

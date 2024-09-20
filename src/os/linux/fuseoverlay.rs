@@ -203,7 +203,7 @@ impl Filesystem for FuseOverlayFs {
                     }
                 }
             } else {
-                let options: Vec<&str> = args.iter().map(|x| x.to_str().unwrap()).collect();
+                let options: Vec<&str> = args.iter().skip(1).map(|x| x.to_str().unwrap()).collect();
                 let output = Command::new("fuse-overlayfs")
                     .args(options)
                     .spawn()
