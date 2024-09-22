@@ -85,7 +85,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn from() {
+    fn try_from() {
         #[cfg(target_family = "unix")]
         {
             let id = PartitionID::try_from(Path::new("/tmp/")).unwrap();
