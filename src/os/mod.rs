@@ -25,7 +25,7 @@ cfg_if::cfg_if! {
                 unsafe { mem::transmute(b) }
             }
             fn as_bytes(&self) -> &[u8] {
-                self.to_str().map(|s| s.as_bytes()).expect("Not a valid utf8")
+                self.to_string_lossy().as_bytes()
             }
         }
     } else if #[cfg(target_os = "macos")] {
@@ -61,13 +61,25 @@ pub trait AsCString {
 impl AsCString for Path {
     #[inline]
     fn as_cstring(&self) -> CString {
-        CString::new(self.as_os_str().as_bytes()).unwrap()
+        let int = {
+            #[cfg(target_family = "unix")]
+            {
+                self.as_os_str().as_bytes()
+            }
+            #[cfg(target_os = "windows")]
+            {
+                self.to_string_lossy().to_string()
+            }
+        };
+
+        // TODO : remove unwrap if possible
+        CString::new(int).unwrap()
     }
 }
 
 impl AsCString for PathBuf {
     #[inline]
     fn as_cstring(&self) -> CString {
-        CString::new(self.as_os_str().as_bytes()).unwrap()
+        self.as_path().as_cstring()
     }
 }

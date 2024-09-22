@@ -223,9 +223,11 @@ impl Filesystem for OverlayFs {
     }
 
     fn is_available() -> bool {
-        std::fs::read_to_string("/proc/filesystems")
-            .expect("Should have been able to read the file")
-            .contains("overlay")
+        if let Ok(res) = std::fs::read_to_string("/proc/filesystems") {
+            res.contains("overlay")
+        } else {
+            false
+        }
     }
 }
 

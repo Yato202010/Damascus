@@ -8,7 +8,7 @@ use std::{
     ffi::CString,
     io,
     path::{Path, PathBuf},
-    process::{Command, Stdio},
+    process::Command,
 };
 use tracing::{debug, error};
 
@@ -242,13 +242,8 @@ impl Filesystem for FuseOverlayFs {
     fn unmount(&mut self) -> Result<(), io::Error> {
         if matches!(self.id,Some(x) if x == PartitionID::try_from(self.target.as_path())?) {
             let child = Command::new("fusermount")
-                .args([
-                    "-z",
-                    "-u",
-                    self.target
-                        .to_str()
-                        .expect("Damascus: unable to convert CString to str"),
-                ])
+                .args(["-z", "-u"])
+                .arg(self.target.as_path())
                 .spawn()?;
             let output = child.wait_with_output()?;
             match output.status.code() {
@@ -298,17 +293,20 @@ impl Filesystem for FuseOverlayFs {
         Ok(())
     }
 
-    #[allow(unreachable_code)]
     fn is_available() -> bool {
         #[cfg(feature = "fuse-overlayfs-vendored")]
         {
-            return true;
+            true
         }
-        Command::new("fuse-overlayfs")
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status()
-            .is_ok()
+        #[cfg(not(feature = "fuse-overlayfs-vendored"))]
+        {
+            use std::process::Stdio;
+            Command::new("fuse-overlayfs")
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status()
+                .is_ok()
+        }
     }
 }
 
