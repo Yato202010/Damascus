@@ -40,14 +40,30 @@ fn main() {
 
 #[inline]
 #[allow(dead_code)]
-fn run<S: AsRef<std::ffi::OsStr> + std::fmt::Debug>(err: &str, op: S, dir: &std::path::PathBuf) {
+fn run<S: AsRef<std::ffi::OsStr> + std::fmt::Debug, P: AsRef<std::path::Path>>(
+    err: &str,
+    op: S,
+    dir: P,
+) {
     use std::process::Command;
-    Command::new(&op)
-        .current_dir(dir)
+    let mut cmd = Command::new(&op);
+    cmd.current_dir(dir);
+    let ouput = cmd.output().unwrap();
+    if cmd
         .spawn()
         .unwrap_or_else(|_| panic!("{:?}: {:?} failed", err, op))
-        .wait_with_output()
-        .unwrap();
+        .wait()
+        .unwrap()
+        .code()
+        .unwrap()
+        != 0
+    {
+        println!(
+            "STDOUT:\n{}\nSTDERR:\n{}",
+            String::from_utf8_lossy(&ouput.stdout),
+            String::from_utf8_lossy(&ouput.stderr)
+        )
+    }
 }
 
 #[cfg(feature = "md5")]
