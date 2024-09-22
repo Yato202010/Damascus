@@ -186,7 +186,7 @@ impl Filesystem for FuseOverlayFs {
                     },
                     unistd::{fexecve, fork, write, ForkResult},
                 };
-                // init embedded fuse overlay version 1.10 or later since [ 1.7 , 1.9 ] doesn't support mounting on top
+                // init embedded fuse overlay version 1.10 or later since [ 1.7, 1.9 ] doesn't support mounting on top
                 // of the base directory
                 let byte = include_bytes!("../../../vendor/fuse-overlayfs/fuse-overlayfs");
                 let mem = memfd_create(

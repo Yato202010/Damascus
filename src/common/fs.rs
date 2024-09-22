@@ -7,11 +7,11 @@ use std::{
 /// Common trait for all filesystem handle
 pub trait Filesystem {
     #[must_use = "Error on filesystem operation should be handled"]
-    /// Request handle to mount the filesystem, returning a PathBuf pointing to the mount point
+    /// Request a handle to mount the filesystem, returning a PathBuf pointing to the mount point
     fn mount(&mut self) -> Result<PathBuf, io::Error>;
 
     #[must_use = "Error on filesystem operation should be handled"]
-    /// Request handle to unmount the filesystem
+    /// Request a handle to unmount the filesystem
     fn unmount(&mut self) -> Result<(), io::Error>;
 
     /// Retrieve unmount_on_drop property
@@ -22,7 +22,7 @@ pub trait Filesystem {
 
     /// Retrieve the partition Identifier
     /// "dev id" on UNIX and "volume serial number" on Windows
-    /// if the partition is not mounted it will return None
+    /// if the partition is not mounted, it will return None
     fn id(&self) -> Option<&PartitionID>;
 
     /// Retrieve the mount point as PathBuf
@@ -45,7 +45,7 @@ pub trait Filesystem {
 /// Common trait for all stackable/union/overlay filesystem handle
 #[allow(dead_code)]
 pub trait StackableFilesystem: Filesystem {
-    /// Retrieve list of lower layer
+    /// Retrieve a list of lower layer
     fn lower(&self) -> Vec<&Path>;
 
     /// Set lower layer
@@ -58,6 +58,6 @@ pub trait StackableFilesystem: Filesystem {
     fn set_upper(&mut self, upper: PathBuf) -> Result<(), io::Error>;
 }
 
-/// Common trait for all case-insensitive filesystem handle
+/// Common trait for all case-insensitive filesystem handles
 #[allow(dead_code)]
 pub trait CaseInsensitive: Filesystem {}
