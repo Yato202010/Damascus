@@ -32,7 +32,7 @@ pub trait Filesystem {
     fn set_target(&mut self, target: &dyn AsRef<Path>) -> Result<(), io::Error>;
 
     /// Get if the filesystem is availible
-    fn is_availible() -> bool
+    fn is_available() -> bool
     where
         Self: Sized;
 

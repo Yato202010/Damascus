@@ -99,7 +99,7 @@ impl OverlayFs {
         C: AsRef<Path>,
         D: AsRef<Path>,
     {
-        if PartitionID::from(upper.as_ref()) != PartitionID::from(work.as_ref()) {
+        if PartitionID::try_from(upper.as_ref())? != PartitionID::try_from(work.as_ref())? {
             return Err(io::Error::new(
                 io::ErrorKind::Other,
                 "overlay FileSystem need the upper dir and the work dir to be on the same FileSystem",
@@ -122,7 +122,17 @@ impl OverlayFs {
 
     #[inline]
     pub fn set_work(&mut self, work: PathBuf) -> Result<(), io::Error> {
-        if PartitionID::from(self.upper.clone().unwrap()) != PartitionID::from(&work) {
+        if PartitionID::try_from(work.as_path())?
+            != PartitionID::try_from(
+                self.upper
+                    .as_ref()
+                    .ok_or(io::Error::new(
+                        io::ErrorKind::NotFound,
+                        "upper directory not set",
+                    ))?
+                    .as_path(),
+            )?
+        {
             return Err(io::Error::new(
                 io::ErrorKind::Other,
                 "overlay FileSystem need the upper dir and the work dir to be on the same FileSystem",
@@ -136,7 +146,7 @@ impl OverlayFs {
 impl Filesystem for OverlayFs {
     #[inline]
     fn mount(&mut self) -> Result<PathBuf, io::Error> {
-        if matches!(self.id,Some(x) if x == PartitionID::from(self.target.as_path())) {
+        if matches!(self.id,Some(x) if x == PartitionID::try_from(self.target.as_path())?) {
             debug!("Damascus: partition already mounted");
             return Ok(self.target.as_path().to_path_buf());
         }
@@ -161,19 +171,19 @@ impl Filesystem for OverlayFs {
             options.extend(b",userxattr");
         }
         mount(
-            Some(CStr::from_bytes_with_nul(b"overlay\0").unwrap()),
+            Some(unsafe { CStr::from_bytes_with_nul(b"overlay\0").unwrap_unchecked() }),
             &*self.target,
-            Some(CStr::from_bytes_with_nul(b"overlay\0").unwrap()),
+            Some(unsafe { CStr::from_bytes_with_nul(b"overlay\0").unwrap_unchecked() }),
             flags,
             Some(&*options),
         )?;
-        self.id = Some(PartitionID::from(&self.target.as_path()));
+        self.id = Some(PartitionID::try_from(self.target.as_path())?);
         Ok(self.target.as_path().to_path_buf())
     }
 
     #[inline]
     fn unmount(&mut self) -> Result<(), io::Error> {
-        if matches!(self.id,Some(x) if x == PartitionID::from(self.target.as_path())) {
+        if matches!(self.id,Some(x) if x == PartitionID::try_from(self.target.as_path())?) {
             umount2(self.target.as_c_str(), MntFlags::MNT_DETACH)?;
             self.id = None;
         }
@@ -212,7 +222,7 @@ impl Filesystem for OverlayFs {
         Ok(())
     }
 
-    fn is_availible() -> bool {
+    fn is_available() -> bool {
         std::fs::read_to_string("/proc/filesystems")
             .expect("Should have been able to read the file")
             .contains("overlay")
@@ -244,7 +254,17 @@ impl StackableFilesystem for OverlayFs {
 
     #[inline]
     fn set_upper(&mut self, upper: PathBuf) -> Result<(), io::Error> {
-        if PartitionID::from(&upper) != PartitionID::from(self.work.clone().unwrap()) {
+        if PartitionID::try_from(upper.as_path())?
+            != PartitionID::try_from(
+                self.work
+                    .as_ref()
+                    .ok_or(io::Error::new(
+                        io::ErrorKind::NotFound,
+                        "work directory not set",
+                    ))?
+                    .as_path(),
+            )?
+        {
             return Err(io::Error::new(
                 io::ErrorKind::Other,
                 "overlay FileSystem need the upper dir and the work dir to be on the same FileSystem",
@@ -307,6 +327,6 @@ mod tests {
 
     #[test]
     fn availibility() {
-        assert!(OverlayFs::is_availible())
+        assert!(OverlayFs::is_available())
     }
 }

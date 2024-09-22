@@ -98,7 +98,7 @@ impl UnionFsFuse {
 impl Filesystem for UnionFsFuse {
     #[inline]
     fn mount(&mut self) -> Result<PathBuf, io::Error> {
-        if matches!(self.id,Some(x) if x == PartitionID::from(self.target.as_path())) {
+        if matches!(self.id,Some(x) if x == PartitionID::try_from(self.target.as_path())?) {
             debug!("Damascus: partition already mounted");
             return Ok(PathBuf::from(&self.target.as_path()));
         }
@@ -180,13 +180,13 @@ impl Filesystem for UnionFsFuse {
             }
         );
 
-        self.id = Some(PartitionID::from(&self.target.as_path()));
+        self.id = Some(PartitionID::try_from(self.target.as_path())?);
         Ok(self.target.as_path().to_path_buf())
     }
 
     #[inline]
     fn unmount(&mut self) -> Result<(), io::Error> {
-        if matches!(self.id,Some(x) if x == PartitionID::from(self.target.as_path())) {
+        if matches!(self.id,Some(x) if x == PartitionID::try_from(self.target.as_path())?) {
             let child = Command::new("fusermount")
                 .args([
                     "-z",
@@ -197,12 +197,15 @@ impl Filesystem for UnionFsFuse {
                 ])
                 .spawn()?;
             let output = child.wait_with_output()?;
-            if output.status.code().unwrap() != 0 {
-                error!("Damascus: unable to unmount {:?}", &self);
-                return Err(io::Error::new(
-                    io::ErrorKind::PermissionDenied,
-                    "Failed to unmount vfs",
-                ));
+            match output.status.code() {
+                Some(0) => {}
+                Some(_) | None => {
+                    error!("Damascus: unable to unmount {:?}", &self);
+                    return Err(io::Error::new(
+                        io::ErrorKind::PermissionDenied,
+                        "Failed to unmount vfs",
+                    ));
+                }
             }
             self.id = None;
         }
@@ -242,7 +245,7 @@ impl Filesystem for UnionFsFuse {
     }
 
     #[allow(unreachable_code)]
-    fn is_availible() -> bool {
+    fn is_available() -> bool {
         #[cfg(feature = "unionfs-fuse-vendored")]
         {
             return true;
@@ -311,6 +314,6 @@ mod tests {
 
     #[test]
     fn availibility() {
-        assert!(UnionFsFuse::is_availible())
+        assert!(UnionFsFuse::is_available())
     }
 }

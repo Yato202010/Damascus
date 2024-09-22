@@ -7,7 +7,7 @@ use std::fs::create_dir_all;
 use temp_testdir::TempDir;
 
 pub fn mount_fuse_overlay_r() {
-    if !FuseOverlayFs::is_availible() {
+    if !FuseOverlayFs::is_available() {
         skip!("OverlayFs is not availible");
         return;
     }
@@ -30,7 +30,7 @@ pub fn mount_fuse_overlay_r() {
 }
 
 pub fn mount_fuse_overlay_rw() {
-    if !FuseOverlayFs::is_availible() {
+    if !FuseOverlayFs::is_available() {
         skip!("OverlayFs is not availible");
         return;
     }
@@ -61,7 +61,7 @@ pub fn mount_fuse_overlay_rw() {
 }
 
 pub fn mount_fuse_overlay_rw_on_lower() {
-    if !FuseOverlayFs::is_availible() {
+    if !FuseOverlayFs::is_available() {
         skip!("OverlayFs is not availible");
         return;
     }

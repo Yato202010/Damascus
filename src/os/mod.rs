@@ -6,7 +6,7 @@ use std::{
 cfg_if::cfg_if! {
     if #[cfg(target_os = "linux")] {
         mod linux;
-        use std::os::unix::ffi::OsStrExt;
+        pub(crate) use std::os::unix::ffi::OsStrExt;
         #[allow(unused_imports)]
         pub use linux::*;
     } else if #[cfg(target_os = "windows")] {
@@ -30,7 +30,7 @@ cfg_if::cfg_if! {
         }
     } else if #[cfg(target_os = "macos")] {
         mod macos;
-        use std::os::unix::OsStrExt;
+        pub(crate) use std::os::unix::OsStrExt;
         #[allow(unused_imports)]
         pub use macos::*;
     }
@@ -61,13 +61,13 @@ pub trait AsCString {
 impl AsCString for Path {
     #[inline]
     fn as_cstring(&self) -> CString {
-        return CString::new(self.as_os_str().as_bytes()).unwrap();
+        CString::new(self.as_os_str().as_bytes()).unwrap()
     }
 }
 
 impl AsCString for PathBuf {
     #[inline]
     fn as_cstring(&self) -> CString {
-        return CString::new(self.as_os_str().as_bytes()).unwrap();
+        CString::new(self.as_os_str().as_bytes()).unwrap()
     }
 }

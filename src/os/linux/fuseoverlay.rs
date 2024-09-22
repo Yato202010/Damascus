@@ -105,7 +105,7 @@ impl FuseOverlayFs {
         C: AsRef<Path>,
         D: AsRef<Path>,
     {
-        if PartitionID::from(upper.as_ref()) != PartitionID::from(work.as_ref()) {
+        if PartitionID::try_from(upper.as_ref())? != PartitionID::try_from(work.as_ref())? {
             return Err(io::Error::new(
                 io::ErrorKind::Other,
                 "fuse-overlay FileSystem need the upper dir and the work dir to be on the same FileSystem",
@@ -128,7 +128,17 @@ impl FuseOverlayFs {
 
     #[inline]
     pub fn set_work(&mut self, work: PathBuf) -> Result<(), io::Error> {
-        if PartitionID::from(self.upper.clone().unwrap()) != PartitionID::from(&work) {
+        if PartitionID::try_from(work.as_path())?
+            != PartitionID::try_from(
+                self.upper
+                    .as_ref()
+                    .ok_or(io::Error::new(
+                        io::ErrorKind::NotFound,
+                        "upper directory not set",
+                    ))?
+                    .as_path(),
+            )?
+        {
             return Err(io::Error::new(
                 io::ErrorKind::Other,
                 "fuse-overlay FileSystem need the upper dir and the work dir to be on the same FileSystem",
@@ -142,7 +152,7 @@ impl FuseOverlayFs {
 impl Filesystem for FuseOverlayFs {
     #[inline]
     fn mount(&mut self) -> Result<PathBuf, io::Error> {
-        if matches!(self.id,Some(x) if x == PartitionID::from(self.target.as_path())) {
+        if matches!(self.id,Some(x) if x == PartitionID::try_from(self.target.as_path())?) {
             debug!("Damascus: partition already mounted");
             return Ok(PathBuf::from(&self.target.as_path()));
         }
@@ -152,13 +162,13 @@ impl Filesystem for FuseOverlayFs {
             if i != 0 {
                 options.push(':')
             }
-            options.push_str(p.to_str().unwrap());
+            options.push_str(p.to_string_lossy().as_ref());
         }
         if let (Some(u), Some(w)) = (self.upper.as_ref(), self.work.as_ref()) {
             options.push_str(",upperdir=");
-            options.push_str(u.to_str().unwrap());
+            options.push_str(u.to_string_lossy().as_ref());
             options.push_str(",workdir=");
-            options.push_str(w.to_str().unwrap());
+            options.push_str(w.to_string_lossy().as_ref());
         }
         let args = &[
             CString::new("")?,
@@ -224,13 +234,13 @@ impl Filesystem for FuseOverlayFs {
             }
         );
 
-        self.id = Some(PartitionID::from(&self.target.as_path()));
+        self.id = Some(PartitionID::try_from(self.target.as_path())?);
         Ok(self.target.as_path().to_path_buf())
     }
 
     #[inline]
     fn unmount(&mut self) -> Result<(), io::Error> {
-        if matches!(self.id,Some(x) if x == PartitionID::from(self.target.as_path())) {
+        if matches!(self.id,Some(x) if x == PartitionID::try_from(self.target.as_path())?) {
             let child = Command::new("fusermount")
                 .args([
                     "-z",
@@ -241,12 +251,15 @@ impl Filesystem for FuseOverlayFs {
                 ])
                 .spawn()?;
             let output = child.wait_with_output()?;
-            if output.status.code().unwrap() != 0 {
-                error!("Damascus: unable to unmount {:?}", &self);
-                return Err(io::Error::new(
-                    io::ErrorKind::PermissionDenied,
-                    "Failed to unmount vfs",
-                ));
+            match output.status.code() {
+                Some(0) => {}
+                Some(_) | None => {
+                    error!("Damascus: unable to unmount {:?}", &self);
+                    return Err(io::Error::new(
+                        io::ErrorKind::PermissionDenied,
+                        "Failed to unmount vfs",
+                    ));
+                }
             }
             self.id = None;
         }
@@ -286,7 +299,7 @@ impl Filesystem for FuseOverlayFs {
     }
 
     #[allow(unreachable_code)]
-    fn is_availible() -> bool {
+    fn is_available() -> bool {
         #[cfg(feature = "fuse-overlayfs-vendored")]
         {
             return true;
@@ -324,7 +337,17 @@ impl StackableFilesystem for FuseOverlayFs {
 
     #[inline]
     fn set_upper(&mut self, upper: PathBuf) -> Result<(), io::Error> {
-        if PartitionID::from(&upper) != PartitionID::from(self.work.clone().unwrap()) {
+        if PartitionID::try_from(upper.as_path())?
+            != PartitionID::try_from(
+                self.work
+                    .as_ref()
+                    .ok_or(io::Error::new(
+                        io::ErrorKind::NotFound,
+                        "work directory not set",
+                    ))?
+                    .as_path(),
+            )?
+        {
             return Err(io::Error::new(
                 io::ErrorKind::Other,
                 "fuse-overlay FileSystem need the upper dir and the work dir to be on the same FileSystem",
@@ -360,6 +383,6 @@ mod tests {
 
     #[test]
     fn availibility() {
-        assert!(FuseOverlayFs::is_availible())
+        assert!(FuseOverlayFs::is_available())
     }
 }

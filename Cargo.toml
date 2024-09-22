@@ -2,7 +2,6 @@
 name = "damascus"
 version = "0.0.2"
 edition = "2021"
-rust-version = "1.66.1"
 authors = ["Yato202010"]
 description = "filesystem utility crate for the Flamberg mod manager stack"
 license-file = "LICENSE"
@@ -11,6 +10,8 @@ resolver = "2"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+# error
+thiserror = "1.0"
 # static eval
 cfg-if = "1.0"
 
@@ -18,7 +19,7 @@ cfg-if = "1.0"
 tracing = "0.1"
 
 [target.'cfg(target_os = "windows")'.dependencies]
-windows = { version = "0.56", features = [
+windows = { version = "0.58.0", features = [
   "Win32_Storage_FileSystem",
   "Win32_Foundation",
   "Win32_System_WindowsProgramming",

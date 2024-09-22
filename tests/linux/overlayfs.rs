@@ -7,7 +7,7 @@ use std::fs::create_dir_all;
 use temp_testdir::TempDir;
 
 pub fn mount_overlay_r() {
-    if !OverlayFs::is_availible() {
+    if !OverlayFs::is_available() {
         skip!("OverlayFs is not availible");
         return;
     }
@@ -29,7 +29,7 @@ pub fn mount_overlay_r() {
 }
 
 pub fn mount_overlay_rw() {
-    if !OverlayFs::is_availible() {
+    if !OverlayFs::is_available() {
         skip!("OverlayFs is not availible");
         return;
     }
@@ -60,7 +60,7 @@ pub fn mount_overlay_rw() {
 }
 
 pub fn mount_overlay_rw_on_lower() {
-    if !OverlayFs::is_availible() {
+    if !OverlayFs::is_available() {
         skip!("OverlayFs is not availible");
         return;
     }
