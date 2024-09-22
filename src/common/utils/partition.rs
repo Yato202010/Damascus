@@ -3,10 +3,10 @@ use std::path::Path;
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 /// Representation of a partition unique identifier
 pub struct PartitionID(
-    /// partition dev id
+    /// Partition dev id
     #[cfg(target_family = "unix")]
     u64,
-    /// partition volume serial number
+    /// Partition volume serial number
     #[cfg(target_os = "windows")]
     u32,
 );

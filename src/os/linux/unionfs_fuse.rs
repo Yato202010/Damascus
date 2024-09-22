@@ -313,7 +313,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn availibility() {
+    fn availability() {
         assert!(UnionFsFuse::is_available())
     }
 }

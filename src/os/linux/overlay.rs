@@ -326,7 +326,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn availibility() {
+    fn availability() {
         assert!(OverlayFs::is_available())
     }
 }

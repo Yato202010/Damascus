@@ -14,24 +14,24 @@ pub trait Filesystem {
     /// Request handle to unmount the filesystem
     fn unmount(&mut self) -> Result<(), io::Error>;
 
-    /// Retreive unmount_on_drop property
+    /// Retrieve unmount_on_drop property
     fn unmount_on_drop(&self) -> bool;
 
     /// Set unmount_on_drop property
     fn set_unmount_on_drop(&mut self, drop: bool);
 
-    /// Retreive the partition Identifier
-    /// "dev id" on unix and "volume serial number" on windows
+    /// Retrieve the partition Identifier
+    /// "dev id" on UNIX and "volume serial number" on Windows
     /// if the partition is not mounted it will return None
     fn id(&self) -> Option<&PartitionID>;
 
-    /// Retreive the mount point as PathBuf
+    /// Retrieve the mount point as PathBuf
     fn target(&self) -> Result<PathBuf, io::Error>;
 
     /// Set Target mount point
     fn set_target(&mut self, target: &dyn AsRef<Path>) -> Result<(), io::Error>;
 
-    /// Get if the filesystem is availible
+    /// Get if the filesystem is available
     fn is_available() -> bool
     where
         Self: Sized;
@@ -45,19 +45,19 @@ pub trait Filesystem {
 /// Common trait for all stackable/union/overlay filesystem handle
 #[allow(dead_code)]
 pub trait StackableFilesystem: Filesystem {
-    /// Retreive list of lower layer
+    /// Retrieve list of lower layer
     fn lower(&self) -> Vec<&Path>;
 
     /// Set lower layer
     fn set_lower(&mut self, lower: Vec<PathBuf>) -> Result<(), io::Error>;
 
-    /// Retreive upper layer if set
+    /// Retrieve upper layer if set
     fn upper(&self) -> Option<&Path>;
 
     /// Set upper layer
     fn set_upper(&mut self, upper: PathBuf) -> Result<(), io::Error>;
 }
 
-/// Common trait for all case insensitive filesystem handle
+/// Common trait for all case-insensitive filesystem handle
 #[allow(dead_code)]
 pub trait CaseInsensitive: Filesystem {}
