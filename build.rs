@@ -1,9 +1,7 @@
 fn main() {
     println!("cargo:rerun-if-changed=vendor");
-    #[cfg(feature = "cache")]
-    #[allow(unused_variables)]
-    let vendored = std::path::Path::new("./target/vendored");
 
+    #[cfg(feature = "git")]
     init_submodule();
 
     #[cfg(feature = "fuse-overlayfs-vendored")]
@@ -13,17 +11,23 @@ fn main() {
             panic!("fuse-overlayfs submodule is not present fuse-overlayfs-vendored cannot be used")
         }
         const EXEC: &str = "fuse-overlayfs";
-        let outdir = vendored.join(EXEC);
+        let outdir = std::path::Path::new("./target/vendored").join(EXEC);
         if !outdir.exists() {
             std::fs::create_dir_all(&outdir).unwrap()
         }
         let exec_path = outdir.join("bin").join(EXEC);
-        if need_rebuild(&d, &outdir, vec![]) {
-            let _ = autotools::Config::new(&d)
-                .out_dir(std::fs::canonicalize(outdir).expect("cannot canonicalize"))
+        let build = || {
+            autotools::Config::new(&d)
+                .out_dir(std::fs::canonicalize(&outdir).expect("cannot canonicalize"))
                 .reconf("-fis")
-                .build();
+                .build()
+        };
+        #[cfg(feature = "build-cache")]
+        if need_rebuild(&d, &outdir, vec![]) {
+            build();
         }
+        #[cfg(not(feature = "build-cache"))]
+        build();
         println!(
             "cargo::rustc-env=FUSE-OVERLAYFS-BIN={}",
             &exec_path.to_string_lossy()
@@ -36,19 +40,25 @@ fn main() {
         if !d.exists() {
             panic!("unionfs-fuse submodule is not present unionfs-fuse-vendored cannot be used")
         }
+
         const EXEC: &str = "unionfs";
-        let outdir = vendored.join(EXEC);
+        let outdir = std::path::Path::new("./target/vendored").join(EXEC);
         if !outdir.exists() {
             std::fs::create_dir_all(&outdir).unwrap()
         }
         let exec_path = outdir.join("build/src").join(EXEC);
-        if need_rebuild(&d, &outdir, vec![]) {
-            let dst = cmake::Config::new(&d)
-                .out_dir(std::fs::canonicalize(outdir).expect("cannot canonicalize"))
+        let build = || {
+            cmake::Config::new(&d)
+                .out_dir(std::fs::canonicalize(&outdir).expect("cannot canonicalize"))
                 .very_verbose(false)
                 .build();
-            dbg!(&dst);
+        };
+        #[cfg(feature = "build-cache")]
+        if need_rebuild(&d, &outdir, vec![]) {
+            build();
         }
+        #[cfg(not(feature = "build-cache"))]
+        build();
         println!(
             "cargo::rustc-env=UNIONFS-FUSE-BIN={}",
             &exec_path.to_string_lossy()
@@ -57,6 +67,7 @@ fn main() {
 }
 
 #[inline]
+#[cfg(feature = "git")]
 fn init_submodule() {
     let repo = git::Repository::open(".").unwrap();
     let submodules = repo.submodules().unwrap();
@@ -73,7 +84,7 @@ fn init_submodule() {
 
 #[inline]
 #[allow(dead_code)]
-#[cfg(feature = "cache")]
+#[cfg(feature = "build-cache")]
 fn need_rebuild<P: AsRef<std::path::Path>, Q: AsRef<std::path::Path>>(
     src: P,
     out: Q,
