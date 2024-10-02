@@ -12,7 +12,10 @@ pub fn mount_overlay_r() {
         return;
     }
     if !geteuid().is_root() {
-        setup_namespaces();
+        if let Err(_e) = setup_namespaces() {
+            skip!("Cannot setup user namespaces this is not what we are testing");
+            return;
+        }
     }
     let tmp = TempDir::default().to_path_buf();
     let lower1 = tmp.join("lower1");

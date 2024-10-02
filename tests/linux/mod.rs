@@ -1,10 +1,10 @@
 use core::panic;
 use std::{
     fs::{self, File},
-    io::{self, Read, Write},
+    io::{Read, Write},
     os::unix::prelude::OpenOptionsExt,
     path::Path,
-    process::{self, Command},
+    process::Command,
     sync::Once,
 };
 
@@ -109,31 +109,27 @@ const EXPECTED_STATUS: i32 = 23;
 
 static ONCE: Once = std::sync::Once::new();
 
-fn setup_namespaces() {
+fn setup_namespaces() -> Result<(), Errno> {
+    let mut err = None;
     ONCE.call_once(|| {
         // Hold on to the uid in the parent namespace.
         let uid = getuid();
-        let stderr = io::stderr();
-        let mut handle = stderr.lock();
 
-        unshare(CloneFlags::CLONE_NEWUSER.union(CloneFlags::CLONE_NEWNS)).unwrap_or_else(|e| {
-            writeln!(
-                handle,
-                "\nWarning: unshare failed: {}. Are unprivileged user namespaces available?",
-                e
-            )
-            .unwrap();
-            writeln!(handle, "mount is not being tested\n").unwrap();
-            // Exit with success because not all systems support unprivileged user namespaces, and
-            // that's not what we're testing for.
-            process::exit(0);
-        });
-
+        if let Err(e) = unshare(CloneFlags::CLONE_NEWUSER.union(CloneFlags::CLONE_NEWNS)) {
+            return err = Some(e);
+        };
         // Map user as uid 1000.
-        fs::OpenOptions::new()
+        if let Err(e) = fs::OpenOptions::new()
             .write(true)
             .open("/proc/self/uid_map")
             .and_then(|mut f| f.write(format!("1000 {} 1\n", uid).as_bytes()))
-            .unwrap_or_else(|e| panic!("could not write uid map: {}", e));
+        {
+            return err = Some(Errno::from_raw(e.raw_os_error().unwrap_or(-1)));
+        }
     });
+    if let Some(e) = err {
+        Err(e)
+    } else {
+        Ok(())
+    }
 }
