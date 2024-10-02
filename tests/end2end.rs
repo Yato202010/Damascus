@@ -111,4 +111,7 @@ fn main() {
         result.2,
         duration.as_secs_f64()
     );
+    if result.1 > 0 {
+        std::process::exit(-1)
+    }
 }

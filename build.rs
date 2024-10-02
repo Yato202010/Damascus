@@ -1,5 +1,10 @@
 fn main() {
     println!("cargo:rerun-if-changed=vendor");
+    #[cfg(feature = "cache")]
+    #[allow(unused_variables)]
+    let vendored = std::path::Path::new("./target/vendored");
+
+    init_submodule();
 
     #[cfg(feature = "fuse-overlayfs-vendored")]
     {
@@ -7,15 +12,22 @@ fn main() {
         if !d.exists() {
             panic!("fuse-overlayfs submodule is not present fuse-overlayfs-vendored cannot be used")
         }
-        let err = "Unable to Compile fuse-overlayfs";
-        let executable = d.join("fuse-overlayfs");
-
-        if !is_cache_valid(&executable) {
-            run(err, d.join("autogen.sh"), &d);
-            run(err, d.join("configure"), &d);
-            run(err, "make", &d);
-            cache(&executable);
+        const EXEC: &str = "fuse-overlayfs";
+        let outdir = vendored.join(EXEC);
+        if !outdir.exists() {
+            std::fs::create_dir_all(&outdir).unwrap()
         }
+        let exec_path = outdir.join("bin").join(EXEC);
+        if need_rebuild(&d, &outdir, vec![]) {
+            let _ = autotools::Config::new(&d)
+                .out_dir(std::fs::canonicalize(outdir).expect("cannot canonicalize"))
+                .reconf("-fis")
+                .build();
+        }
+        println!(
+            "cargo::rustc-env=FUSE-OVERLAYFS-BIN={}",
+            &exec_path.to_string_lossy()
+        );
     }
 
     #[cfg(feature = "unionfs-fuse-vendored")]
@@ -24,81 +36,105 @@ fn main() {
         if !d.exists() {
             panic!("unionfs-fuse submodule is not present unionfs-fuse-vendored cannot be used")
         }
-        dbg!(&d);
-        let build_d = d.join("build");
-        if !build_d.exists() {
-            std::fs::create_dir(&build_d).unwrap()
+        const EXEC: &str = "unionfs";
+        let outdir = vendored.join(EXEC);
+        if !outdir.exists() {
+            std::fs::create_dir_all(&outdir).unwrap()
         }
-        let executable = build_d.join("bin/unionfs");
-        if !is_cache_valid(&executable) {
-            use cmake::Config;
-            let _ = Config::new(&d).out_dir(build_d).very_verbose(false).build();
-            cache(&executable);
+        let exec_path = outdir.join("build/src").join(EXEC);
+        if need_rebuild(&d, &outdir, vec![]) {
+            let dst = cmake::Config::new(&d)
+                .out_dir(std::fs::canonicalize(outdir).expect("cannot canonicalize"))
+                .very_verbose(false)
+                .build();
+            dbg!(&dst);
         }
-    }
-}
-
-#[inline]
-#[allow(dead_code)]
-fn run<S: AsRef<std::ffi::OsStr> + std::fmt::Debug, P: AsRef<std::path::Path>>(
-    err: &str,
-    op: S,
-    dir: P,
-) {
-    use std::process::Command;
-    let mut cmd = Command::new(&op);
-    cmd.current_dir(dir);
-    let ouput = cmd.output().unwrap();
-    if cmd
-        .spawn()
-        .unwrap_or_else(|_| panic!("{:?}: {:?} failed", err, op))
-        .wait()
-        .unwrap()
-        .code()
-        .unwrap()
-        != 0
-    {
         println!(
-            "STDOUT:\n{}\nSTDERR:\n{}",
-            String::from_utf8_lossy(&ouput.stdout),
-            String::from_utf8_lossy(&ouput.stderr)
-        )
+            "cargo::rustc-env=UNIONFS-FUSE-BIN={}",
+            &exec_path.to_string_lossy()
+        );
     }
 }
 
-#[cfg(feature = "md5")]
-#[allow(dead_code)]
-const CACHE_DIR: &str = "target/.cache";
-
 #[inline]
-#[cfg(feature = "md5")]
-#[allow(dead_code)]
-fn is_cache_valid<S: AsRef<std::path::Path> + std::fmt::Debug>(path: S) -> bool {
-    let path = path.as_ref();
-    if !path.exists() {
-        return false;
+fn init_submodule() {
+    let repo = git::Repository::open(".").unwrap();
+    let submodules = repo.submodules().unwrap();
+    for mut submodule in submodules {
+        let entries: Vec<std::fs::DirEntry> = std::fs::read_dir(submodule.path())
+            .unwrap()
+            .map(|x| x.unwrap())
+            .collect();
+        if entries.is_empty() {
+            submodule.update(true, None).unwrap();
+        }
     }
-    let cache = std::path::Path::new(CACHE_DIR).join(path.file_name().unwrap());
-    if !cache.exists() {
-        return false;
-    }
-    let old_hash = std::fs::read(cache).unwrap();
-    let buf = std::fs::read(path).unwrap();
-    let new_hash = md5::compute(&buf).0;
-    old_hash == new_hash
 }
 
 #[inline]
-#[cfg(feature = "md5")]
 #[allow(dead_code)]
-fn cache<S: AsRef<std::path::Path> + std::fmt::Debug>(path: S) {
-    let path = path.as_ref();
-    let buf = std::fs::read(path).unwrap();
-    let hash = md5::compute(&buf).0;
-    if !std::path::PathBuf::from(CACHE_DIR).exists() {
-        std::fs::create_dir_all(CACHE_DIR).unwrap();
+#[cfg(feature = "cache")]
+fn need_rebuild<P: AsRef<std::path::Path>, Q: AsRef<std::path::Path>>(
+    src: P,
+    out: Q,
+    exception: Vec<String>,
+) -> bool {
+    use git::{Repository, StatusOptions};
+    use serde::{Deserialize, Serialize};
+
+    #[derive(Serialize, Deserialize)]
+    struct Cache {
+        commit: String,
+        new_or_edited: Vec<(String, [u8; 16])>,
     }
 
-    let cache = std::path::Path::new(CACHE_DIR).join(path.file_name().unwrap());
-    std::fs::write(cache, hash).unwrap();
+    let cache_file = out.as_ref().join("cache.tag");
+    let cache: Option<Cache> = std::fs::File::open(&cache_file)
+        .ok()
+        .map(std::io::BufReader::new)
+        .and_then(|x| serde_json::from_reader(x).ok());
+
+    if let Ok(repo) = Repository::open(&src) {
+        let latest_commit_hash = repo
+            .head()
+            .expect("No HEAD")
+            .target()
+            .expect("No target")
+            .to_string();
+        let mut hashed = vec![];
+
+        for elem in repo
+            .statuses(Some(StatusOptions::new().include_untracked(true)))
+            .unwrap()
+            .iter()
+        {
+            let path_str = elem.path().expect("not a valid utf8").to_string();
+            dbg!(&path_str);
+            if !exception.contains(&path_str) {
+                let buf = std::fs::read(src.as_ref().join(&path_str)).unwrap();
+                let hash = md5::compute(&buf).0;
+                hashed.push((path_str.clone(), hash));
+            }
+        }
+
+        // Write the latest commit hash to a cache file if it's different from the cached one
+        return if !cache
+            .is_some_and(|x| x.commit == latest_commit_hash && x.new_or_edited == hashed)
+        {
+            println!("Detected changes in vendored dependency. Updating cache.");
+
+            let new_cache = Cache {
+                commit: latest_commit_hash,
+                new_or_edited: hashed,
+            };
+            // Update the cache file with the latest commit hash
+            std::fs::write(cache_file, serde_json::to_string(&new_cache).unwrap())
+                .expect("Unable to write cache file");
+            true
+        } else {
+            println!("No changes detected in vendored dependency.");
+            false
+        };
+    }
+    true
 }

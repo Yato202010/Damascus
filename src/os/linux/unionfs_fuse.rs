@@ -132,7 +132,7 @@ impl Filesystem for UnionFsFuse {
                     unistd::{fexecve, fork, write, ForkResult},
                 };
                 // init embedded unionfs fuse since it's not always packaged by distribution
-                let byte = include_bytes!("../../../vendor/unionfs-fuse/build/bin/unionfs");
+                let byte = include_bytes!(concat!("../../../",env!("UNIONFS-FUSE-BIN")));
                 let mem = memfd_create(
                     &CString::new("unionfs")?,
                     MemFdCreateFlag::empty(),

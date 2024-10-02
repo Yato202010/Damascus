@@ -5,6 +5,7 @@ edition = "2021"
 authors = ["Yato202010"]
 description = "filesystem utility crate for the Flamberg mod manager stack"
 license-file = "LICENSE"
+keywords = ["filesystem", "fuse-overlayfs", "overlayfs"]
 resolver = "2"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -41,17 +42,22 @@ colored = "2.1"
 temp_testdir = "0.2"
 
 [build-dependencies]
+autotools = { version = "0.2", optional = true }
 cmake = { version = "0.1", optional = true }
-md5 = { version = "0.7.0", optional = true }
+md5 = { version = "0.7", optional = true }
+git = { version = "0.19", optional = true, package = "git2" }
+serde = { version = "1.0", optional = true, features = ["derive"] }
+serde_json = { version = "1.0", optional = true }
 
 [features]
 default = ["overlayfs", "fuse-overlayfs-vendored"]
 overlayfs = []
 fuse-overlayfs = []
-fuse-overlayfs-vendored = ["fuse-overlayfs", "md5"]
+fuse-overlayfs-vendored = ["fuse-overlayfs", "autotools", "cache"]
 # WARN : experimental may be removed at any moment
 unionfs-fuse = []
-unionfs-fuse-vendored = ["unionfs-fuse", "cmake", "md5"]
+unionfs-fuse-vendored = ["unionfs-fuse", "cmake", "cache"]
+cache = ["dep:md5", "dep:git", "dep:serde", "dep:serde_json"]
 
 [profile.release]
 lto = true
