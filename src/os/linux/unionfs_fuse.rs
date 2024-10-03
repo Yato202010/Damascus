@@ -3,7 +3,10 @@
 * https://github.com/tailhook/libmount/blob/master/src/overlay.rs
 */
 
+pub mod option;
+
 use cfg_if::cfg_if;
+use option::UnionFsFuseOption;
 use std::{
     ffi::CString,
     io,
@@ -13,7 +16,7 @@ use std::{
 
 use tracing::{debug, error};
 
-use crate::{AsCString, AsPath, Filesystem, PartitionID, StackableFilesystem};
+use crate::{AsCString, AsPath, Filesystem, MountOption, PartitionID, StackableFilesystem};
 
 #[derive(Debug)]
 /// Unionfs fuse filesystem handle
@@ -21,6 +24,7 @@ pub struct UnionFsFuse {
     lower: Vec<PathBuf>,
     upper: Option<PathBuf>,
     target: CString,
+    options: Vec<MountOption<UnionFsFuseOption>>,
     id: Option<PartitionID>,
     drop: bool,
 }
@@ -45,6 +49,7 @@ impl UnionFsFuse {
             lower,
             upper: upper.map(|x| x.into()),
             target: target.as_ref().as_cstring(),
+            options: MountOption::defaults(),
             id: None,
             drop,
         })
@@ -70,6 +75,7 @@ impl UnionFsFuse {
             lower,
             upper: None,
             target: target.as_ref().as_cstring(),
+            options: MountOption::defaults(),
             id: None,
             drop: true,
         })
@@ -89,13 +95,14 @@ impl UnionFsFuse {
             lower: lower.map(|x| x.as_ref().to_path_buf()).collect(),
             upper: Some(upper.as_ref().to_path_buf()),
             target: target.as_ref().as_cstring(),
+            options: MountOption::defaults(),
             id: None,
             drop: true,
         })
     }
 }
 
-impl Filesystem for UnionFsFuse {
+impl Filesystem<UnionFsFuseOption> for UnionFsFuse {
     #[inline]
     fn mount(&mut self) -> Result<PathBuf, io::Error> {
         if matches!(self.id,Some(x) if x == PartitionID::try_from(self.target.as_path())?) {
@@ -111,17 +118,20 @@ impl Filesystem for UnionFsFuse {
             layer_args.push_str(upper.to_string_lossy().as_ref());
             layer_args.push_str("=rw");
         }
+
+        let mut options = String::new();
+        for mo in &self.options {
+            options.push_str(&(",".to_string() + &mo.to_string()))
+        }
+
         let args = &[
             CString::new("")?,
             CString::new("-o")?,
-            CString::new("cow")?,
-            CString::new("-o")?,
-            CString::new("hide_meta_files")?,
-            CString::new("-o")?,
-            CString::new("preserve_branch")?,
+            CString::new(options)?,
             CString::new(layer_args)?,
             self.target.clone(),
         ];
+
         cfg_if!(
             if #[cfg(feature = "unionfs-fuse-vendored")] {
                 use nix::{
@@ -252,9 +262,50 @@ impl Filesystem for UnionFsFuse {
                 .is_ok()
         }
     }
+
+    fn set_option(
+        &mut self,
+        option: impl Into<crate::MountOption<UnionFsFuseOption>>,
+    ) -> Result<(), io::Error> {
+        let option = option.into();
+        for (i, opt) in self.options.clone().iter().enumerate() {
+            // If Option is already set with another value, overwrite it
+            if matches!((opt,&option), (MountOption::FsSpecific(s), MountOption::FsSpecific(o)) if std::mem::discriminant(s) == std::mem::discriminant(&o))
+                | matches!((opt,&option), (s,o) if std::mem::discriminant(s) == std::mem::discriminant(&o))
+            {
+                self.options[i] = option.clone();
+                return Ok(());
+            }
+            // Check option incompatibility
+            if opt.incompatible(&option) {
+                return Err(io::Error::new(
+                    io::ErrorKind::Unsupported,
+                    "Incompatible mount option combinaison",
+                ));
+            }
+        }
+        self.options.push(option);
+        Ok(())
+    }
+
+    fn remove_option(
+        &mut self,
+        option: impl Into<crate::MountOption<UnionFsFuseOption>>,
+    ) -> Result<(), io::Error> {
+        let option = option.into();
+        let idx = self.options.iter().position(|x| *x == option);
+        if let Some(idx) = idx {
+            let _ = self.options.remove(idx);
+        }
+        Ok(())
+    }
+
+    fn options(&self) -> &[crate::MountOption<UnionFsFuseOption>] {
+        &self.options
+    }
 }
 
-impl StackableFilesystem for UnionFsFuse {
+impl StackableFilesystem<UnionFsFuseOption> for UnionFsFuse {
     #[inline]
     fn lower(&self) -> Vec<&Path> {
         self.lower.iter().map(|x| x.as_path()).collect()

@@ -2,8 +2,10 @@
 * implementation inspired by libmount crate
 * https://github.com/tailhook/libmount/blob/master/src/overlay.rs
 */
+pub mod option;
 
 use cfg_if::cfg_if;
+use option::FuseOverlayFsOption;
 use std::{
     ffi::CString,
     io,
@@ -15,7 +17,7 @@ use tracing::{debug, error};
 use crate::{
     common::fs::Filesystem,
     os::{AsCString, AsPath},
-    PartitionID, StackableFilesystem,
+    MountOption, PartitionID, StackableFilesystem,
 };
 
 #[derive(Debug)]
@@ -25,6 +27,7 @@ pub struct FuseOverlayFs {
     upper: Option<PathBuf>,
     work: Option<PathBuf>,
     target: CString,
+    options: Vec<MountOption<FuseOverlayFsOption>>,
     id: Option<PartitionID>,
     drop: bool,
 }
@@ -58,6 +61,7 @@ impl FuseOverlayFs {
             upper: upper.map(|x| x.into()),
             work: work.map(|x| x.into()),
             target: target.as_ref().as_cstring(),
+            options: MountOption::defaults(),
             id: None,
             drop,
         })
@@ -84,6 +88,7 @@ impl FuseOverlayFs {
             upper: None,
             work: None,
             target: target.as_ref().as_cstring(),
+            options: MountOption::defaults(),
             id: None,
             drop: true,
         })
@@ -116,6 +121,7 @@ impl FuseOverlayFs {
             upper: Some(upper.as_ref().to_path_buf()),
             work: Some(work.as_ref().to_path_buf()),
             target: target.as_ref().as_cstring(),
+            options: MountOption::defaults(),
             id: None,
             drop: true,
         })
@@ -149,7 +155,7 @@ impl FuseOverlayFs {
     }
 }
 
-impl Filesystem for FuseOverlayFs {
+impl Filesystem<FuseOverlayFsOption> for FuseOverlayFs {
     #[inline]
     fn mount(&mut self) -> Result<PathBuf, io::Error> {
         if matches!(self.id,Some(x) if x == PartitionID::try_from(self.target.as_path())?) {
@@ -170,6 +176,11 @@ impl Filesystem for FuseOverlayFs {
             options.push_str(",workdir=");
             options.push_str(w.to_string_lossy().as_ref());
         }
+
+        for mo in &self.options {
+            options.push_str(&(",".to_string() + &mo.to_string()))
+        }
+
         let args = &[
             CString::new("")?,
             CString::new("-o")?,
@@ -308,9 +319,50 @@ impl Filesystem for FuseOverlayFs {
                 .is_ok()
         }
     }
+
+    fn set_option(
+        &mut self,
+        option: impl Into<MountOption<FuseOverlayFsOption>>,
+    ) -> Result<(), io::Error> {
+        let option = option.into();
+        for (i, opt) in self.options.clone().iter().enumerate() {
+            // If Option is already set with another value, overwrite it
+            if matches!((opt,&option), (MountOption::FsSpecific(s), MountOption::FsSpecific(o)) if std::mem::discriminant(s) == std::mem::discriminant(&o))
+                | matches!((opt,&option), (s,o) if std::mem::discriminant(s) == std::mem::discriminant(&o))
+            {
+                self.options[i] = option.clone();
+                return Ok(());
+            }
+            // Check option incompatibility
+            if opt.incompatible(&option) {
+                return Err(io::Error::new(
+                    io::ErrorKind::Unsupported,
+                    "Incompatible mount option combinaison",
+                ));
+            }
+        }
+        self.options.push(option);
+        Ok(())
+    }
+
+    fn remove_option(
+        &mut self,
+        option: impl Into<MountOption<FuseOverlayFsOption>>,
+    ) -> Result<(), io::Error> {
+        let option = option.into();
+        let idx = self.options.iter().position(|x| *x == option);
+        if let Some(idx) = idx {
+            let _ = self.options.remove(idx);
+        }
+        Ok(())
+    }
+
+    fn options(&self) -> &[MountOption<FuseOverlayFsOption>] {
+        &self.options
+    }
 }
 
-impl StackableFilesystem for FuseOverlayFs {
+impl StackableFilesystem<FuseOverlayFsOption> for FuseOverlayFs {
     #[inline]
     fn lower(&self) -> Vec<&Path> {
         self.lower.iter().map(|x| x.as_path()).collect()

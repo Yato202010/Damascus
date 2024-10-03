@@ -9,4 +9,4 @@ pub use fuseoverlay::FuseOverlayFs;
 #[cfg(feature = "overlayfs")]
 mod overlay;
 #[cfg(feature = "overlayfs")]
-pub use overlay::OverlayFs;
+pub use overlay::{option::*, OverlayFs};

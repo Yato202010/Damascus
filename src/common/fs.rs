@@ -1,11 +1,17 @@
-use crate::PartitionID;
+use crate::{
+    common::option::{MOption, MountOption},
+    PartitionID,
+};
 use std::{
     io,
     path::{Path, PathBuf},
 };
 
 /// Common trait for all filesystem handle
-pub trait Filesystem {
+pub trait Filesystem<O>
+where
+    O: MOption,
+{
     #[must_use = "Error on filesystem operation should be handled"]
     /// Request a handle to mount the filesystem, returning a PathBuf pointing to the mount point
     fn mount(&mut self) -> Result<PathBuf, io::Error>;
@@ -40,11 +46,20 @@ pub trait Filesystem {
     fn mounted(&self) -> bool {
         self.id().is_some()
     }
+
+    fn set_option(&mut self, option: impl Into<MountOption<O>>) -> Result<(), io::Error>;
+
+    fn remove_option(&mut self, option: impl Into<MountOption<O>>) -> Result<(), io::Error>;
+
+    fn options(&self) -> &[MountOption<O>];
 }
 
 /// Common trait for all stackable/union/overlay filesystem handle
 #[allow(dead_code)]
-pub trait StackableFilesystem: Filesystem {
+pub trait StackableFilesystem<O>: Filesystem<O>
+where
+    O: MOption,
+{
     /// Retrieve a list of lower layer
     fn lower(&self) -> Vec<&Path>;
 
@@ -60,4 +75,8 @@ pub trait StackableFilesystem: Filesystem {
 
 /// Common trait for all case-insensitive filesystem handles
 #[allow(dead_code)]
-pub trait CaseInsensitive: Filesystem {}
+pub trait CaseInsensitive<O>: Filesystem<O>
+where
+    O: MOption,
+{
+}

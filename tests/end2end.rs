@@ -6,6 +6,7 @@ mod linux;
 #[allow(dead_code)]
 mod windows;
 
+use colored::Colorize;
 #[cfg(target_os = "linux")]
 pub use linux::register_test;
 
@@ -104,14 +105,16 @@ fn main() {
     let start = std::time::Instant::now();
     let result = unsafe { TEST_RUNNER.run() };
     let duration = start.elapsed();
+    let ok = result.1 < 1;
     println!(
-        "\ntest result: ok. {} passed; {} failed; {} filtered out; finished in {:.2}s\n",
+        "\ntest result: {}. {} passed; {} failed; {} filtered out; finished in {:.2}s\n",
+        if ok { "ok".green() } else { "FAILED".red() },
         result.0,
         result.1,
         result.2,
         duration.as_secs_f64()
     );
-    if result.1 > 0 {
+    if !ok {
         std::process::exit(-1)
     }
 }

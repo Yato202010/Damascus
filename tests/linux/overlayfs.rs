@@ -1,7 +1,7 @@
 use crate::skip;
 
 use super::{execute_test, read_only_test, read_test, setup_namespaces, write_test};
-use damascus::{Filesystem, OverlayFs};
+use damascus::{Filesystem, OverlayFs, RedirectDir};
 use nix::unistd::geteuid;
 use std::fs::create_dir_all;
 use temp_testdir::TempDir;
@@ -26,6 +26,8 @@ pub fn mount_overlay_r() {
     create_dir_all(&lower2).unwrap();
     create_dir_all(&target).unwrap();
     let mut o = OverlayFs::readonly([&lower1, &lower2].iter(), &target).unwrap();
+    // WARN : this require xattr which is not availible on tmpfs
+    o.set_option(RedirectDir::Off).unwrap();
     o.mount().unwrap();
 
     read_only_test(&test);
