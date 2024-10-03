@@ -84,7 +84,7 @@ fn init_submodule() {
 
 #[inline]
 #[allow(dead_code)]
-#[cfg(feature = "build-cache")]
+#[cfg(all(feature = "build-cache", feature = "git"))]
 fn need_rebuild<P: AsRef<std::path::Path>, Q: AsRef<std::path::Path>>(
     src: P,
     out: Q,
