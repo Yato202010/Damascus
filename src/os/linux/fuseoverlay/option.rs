@@ -30,7 +30,7 @@ pub enum FuseOverlayFsOption {
 
 impl MOption for FuseOverlayFsOption {
     fn defaults() -> Vec<Self> {
-        vec![FuseOverlayFsOption::AllowRoot]
+        vec![]
     }
 
     fn incompatible(&self, other: &MountOption<Self>) -> bool {
