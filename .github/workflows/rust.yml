@@ -2,8 +2,16 @@ name: Test
 
 on:
   push:
+    paths:
+      - "**.toml"
+      - "**.rs"
+      - "!docs/**"
     branches: ["main"]
   pull_request:
+    paths:
+      - "**.toml"
+      - "**.rs"
+      - "!docs/**"
     branches: ["main"]
 
 env:
