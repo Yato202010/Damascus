@@ -4,7 +4,7 @@ fn main() {
     #[cfg(any(feature = "fuse-overlayfs-vendored", feature = "unionfs-fuse-vendored"))]
     vendored::init_submodule();
 
-    #[cfg(feature = "fuse-overlayfs-vendored")]
+    #[cfg(all(feature = "fuse-overlayfs-vendored", target_os = "linux"))]
     {
         let d = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("vendor/fuse-overlayfs/");
         if !d.exists() {
@@ -34,7 +34,7 @@ fn main() {
         );
     }
 
-    #[cfg(feature = "unionfs-fuse-vendored")]
+    #[cfg(all(feature = "unionfs-fuse-vendored", target_os = "linux"))]
     {
         let d = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("vendor/unionfs-fuse/");
         if !d.exists() {
@@ -84,6 +84,7 @@ mod vendored {
     }
 
     #[inline]
+    #[allow(dead_code)]
     #[cfg(feature = "build-cache")]
     pub fn need_rebuild<P: AsRef<std::path::Path>, Q: AsRef<std::path::Path>>(
         src: P,
