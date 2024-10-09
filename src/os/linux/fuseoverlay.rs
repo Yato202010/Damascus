@@ -327,8 +327,8 @@ impl Filesystem<FuseOverlayFsOption> for FuseOverlayFs {
         let option = option.into();
         for (i, opt) in self.options.clone().iter().enumerate() {
             // If Option is already set with another value, overwrite it
-            if matches!((opt,&option), (MountOption::FsSpecific(s), MountOption::FsSpecific(o)) if std::mem::discriminant(s) == std::mem::discriminant(&o))
-                | matches!((opt,&option), (s,o) if std::mem::discriminant(s) == std::mem::discriminant(&o))
+            if matches!((opt,&option), (MountOption::FsSpecific(s), MountOption::FsSpecific(o)) if std::mem::discriminant(s) == std::mem::discriminant(o))
+                | matches!((opt,&option), (s,o) if std::mem::discriminant(s) == std::mem::discriminant(o))
             {
                 self.options[i] = option.clone();
                 return Ok(());
