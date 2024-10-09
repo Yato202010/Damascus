@@ -9,7 +9,6 @@ pub mod option;
 use std::{
     ffi::{CStr, CString},
     io,
-    os::unix::prelude::OsStrExt,
     path::{Path, PathBuf},
 };
 
@@ -159,19 +158,19 @@ impl Filesystem<OverlayFsOption> for OverlayFs {
         }
         // let mut flags = MsFlags::MS_NOATIME.union(MsFlags::MS_NODIRATIME);
         let mut flags = MsFlags::empty();
-        let mut options = Vec::new();
-        options.extend(b"lowerdir=");
+        let mut options = String::new();
+        options.push_str("lowerdir=");
         for (i, p) in self.lower.iter().enumerate() {
             if i != 0 {
-                options.push(b':')
+                options.push(':')
             }
-            _append_escape(&mut options, p);
+            options.push_str(p.to_string_lossy().as_ref());
         }
         if let (Some(u), Some(w)) = (self.upper.as_ref(), self.work.as_ref()) {
-            options.extend(b",upperdir=");
-            _append_escape(&mut options, u);
-            options.extend(b",workdir=");
-            _append_escape(&mut options, w);
+            options.push_str(",upperdir=");
+            options.push_str(u.to_string_lossy().as_ref());
+            options.push_str(",workdir=");
+            options.push_str(w.to_string_lossy().as_ref());
         } else {
             flags = flags.union(MsFlags::MS_RDONLY);
         }
@@ -179,14 +178,16 @@ impl Filesystem<OverlayFsOption> for OverlayFs {
             self.set_option(OverlayFsOption::UserXattr)?;
         }
         for mo in &self.options {
-            options.extend((",".to_string() + &mo.to_string()).as_bytes())
+            options.push_str(&(",".to_string() + &mo.to_string()))
         }
+        let mut args = options.as_bytes().to_vec();
+        args.push(b'\0');
         mount(
             Some(unsafe { CStr::from_bytes_with_nul(b"overlay\0").unwrap_unchecked() }),
             &*self.target,
             Some(unsafe { CStr::from_bytes_with_nul(b"overlay\0").unwrap_unchecked() }),
             flags,
-            Some(&*options),
+            Some(unsafe { CString::from_vec_with_nul_unchecked(args).as_bytes() }),
         )?;
         self.id = Some(PartitionID::try_from(self.target.as_path())?);
         Ok(self.target.as_path().to_path_buf())
@@ -248,8 +249,8 @@ impl Filesystem<OverlayFsOption> for OverlayFs {
         let option = option.into();
         for (i, opt) in self.options.clone().iter().enumerate() {
             // If Option is already set with another value, overwrite it
-            if matches!((opt,&option), (MountOption::FsSpecific(s), MountOption::FsSpecific(o)) if std::mem::discriminant(s) == std::mem::discriminant(&o))
-                | matches!((opt,&option), (s,o) if std::mem::discriminant(s) == std::mem::discriminant(&o))
+            if matches!((opt,&option), (MountOption::FsSpecific(s), MountOption::FsSpecific(o)) if std::mem::discriminant(s) == std::mem::discriminant(o))
+                | matches!((opt,&option), (s,o) if std::mem::discriminant(s) == std::mem::discriminant(o))
             {
                 self.options[i] = option.clone();
                 return Ok(());
@@ -344,33 +345,6 @@ impl Drop for OverlayFs {
                     self.target, err
                 )
             }
-        }
-    }
-}
-
-/*********************************************
-* Copyright (c) 2016 The libmount Developers *
-*********************************************/
-#[inline]
-fn _append_escape(dest: &mut Vec<u8>, path: &Path) {
-    for &byte in path.as_os_str().as_bytes().iter() {
-        match byte {
-            // This is escape char
-            b'\\' => {
-                dest.push(b'\\');
-                dest.push(b'\\');
-            }
-            // This is used as a path separator in lowerdir
-            b':' => {
-                dest.push(b'\\');
-                dest.push(b':');
-            }
-            // This is used as an argument separator
-            b',' => {
-                dest.push(b'\\');
-                dest.push(b',');
-            }
-            x => dest.push(x),
         }
     }
 }
