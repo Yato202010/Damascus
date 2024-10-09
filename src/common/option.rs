@@ -1,7 +1,8 @@
-pub trait MOption: Sized + Clone {
+use std::fmt::Display;
+
+pub trait MOption: Sized + Clone + Display {
     fn defaults() -> Vec<Self>;
     fn incompatible(&self, other: &MountOption<Self>) -> bool;
-    fn to_string(&self) -> String;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -26,12 +27,15 @@ impl<T: MOption> MountOption<T> {
             _ => false,
         }
     }
+}
 
-    pub fn to_string(&self) -> String {
-        match self {
+impl<T: MOption> Display for MountOption<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let str = match self {
             MountOption::FsSpecific(o) => o.to_string(),
             Self::RW => "rw".to_owned(),
             Self::RO => "ro".to_owned(),
-        }
+        };
+        write!(f, "{}", str)
     }
 }

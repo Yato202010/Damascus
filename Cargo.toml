@@ -53,11 +53,11 @@ serde_json = { version = "1.0", optional = true }
 default = ["overlayfs", "fuse-overlayfs-vendored", "build-cache"]
 overlayfs = []
 fuse-overlayfs = []
-fuse-overlayfs-vendored = ["fuse-overlayfs", "autotools", "git"]
+fuse-overlayfs-vendored = ["fuse-overlayfs", "dep:autotools", "dep:git"]
+build-cache = ["dep:md5", "dep:serde", "dep:serde_json"]
 # WARN : experimental may be removed at any moment
 unionfs-fuse = []
-unionfs-fuse-vendored = ["unionfs-fuse", "cmake", "git"]
-build-cache = ["dep:md5", "dep:serde", "dep:serde_json"]
+unionfs-fuse-vendored = ["unionfs-fuse", "dep:cmake", "dep:git"]
 
 [profile.release]
 lto = true

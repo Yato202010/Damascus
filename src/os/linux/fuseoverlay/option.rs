@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use crate::{MOption, MountOption};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -37,25 +39,31 @@ impl MOption for FuseOverlayFsOption {
         // TODO : find incompatible mount option and define compatibility matrix
         false
     }
+}
 
-    fn to_string(&self) -> String {
-        match self {
-            //FuseOverlayFsOption::CloneFd => "clone_fd".to_owned(),
-            FuseOverlayFsOption::MaxIdleThread(x) => format!("max_idle_threads={}", x),
-            FuseOverlayFsOption::MaxThread(x) => format!("max_threads={}", x),
-            FuseOverlayFsOption::AllowOther => "allow_other".to_owned(),
-            FuseOverlayFsOption::AllowRoot => "allow_root".to_owned(),
-            FuseOverlayFsOption::SquashToRoot => "squash_to_root".to_owned(),
-            FuseOverlayFsOption::SquashToUid(uid) => format!("squash_to_uid={}", uid),
-            FuseOverlayFsOption::SquashToGid(gid) => format!("squash_to_gid={}", gid),
-            FuseOverlayFsOption::StaticNLink => "static_nlink".to_owned(),
-            FuseOverlayFsOption::NoAcl => "noacl".to_owned(),
-        }
+impl Display for FuseOverlayFsOption {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                //FuseOverlayFsOption::CloneFd => "clone_fd".to_owned(),
+                FuseOverlayFsOption::MaxIdleThread(x) => format!("max_idle_threads={}", x),
+                FuseOverlayFsOption::MaxThread(x) => format!("max_threads={}", x),
+                FuseOverlayFsOption::AllowOther => "allow_other".to_owned(),
+                FuseOverlayFsOption::AllowRoot => "allow_root".to_owned(),
+                FuseOverlayFsOption::SquashToRoot => "squash_to_root".to_owned(),
+                FuseOverlayFsOption::SquashToUid(uid) => format!("squash_to_uid={}", uid),
+                FuseOverlayFsOption::SquashToGid(gid) => format!("squash_to_gid={}", gid),
+                FuseOverlayFsOption::StaticNLink => "static_nlink".to_owned(),
+                FuseOverlayFsOption::NoAcl => "noacl".to_owned(),
+            }
+        )
     }
 }
 
-impl Into<MountOption<FuseOverlayFsOption>> for FuseOverlayFsOption {
-    fn into(self) -> MountOption<FuseOverlayFsOption> {
-        MountOption::FsSpecific(self)
+impl From<FuseOverlayFsOption> for MountOption<FuseOverlayFsOption> {
+    fn from(val: FuseOverlayFsOption) -> Self {
+        MountOption::FsSpecific(val)
     }
 }

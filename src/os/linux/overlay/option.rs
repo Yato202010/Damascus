@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use crate::{MOption, MountOption};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -8,9 +10,9 @@ pub enum RedirectDir {
     Off,
 }
 
-impl Into<MountOption<OverlayFsOption>> for RedirectDir {
-    fn into(self) -> MountOption<OverlayFsOption> {
-        MountOption::FsSpecific(OverlayFsOption::RedirectDir(self))
+impl From<RedirectDir> for MountOption<OverlayFsOption> {
+    fn from(val: RedirectDir) -> Self {
+        MountOption::FsSpecific(OverlayFsOption::RedirectDir(val))
     }
 }
 
@@ -21,9 +23,9 @@ pub enum FsVerity {
     Off,
 }
 
-impl Into<MountOption<OverlayFsOption>> for FsVerity {
-    fn into(self) -> MountOption<OverlayFsOption> {
-        MountOption::FsSpecific(OverlayFsOption::FsVerity(self))
+impl From<FsVerity> for MountOption<OverlayFsOption> {
+    fn from(val: FsVerity) -> Self {
+        MountOption::FsSpecific(OverlayFsOption::FsVerity(val))
     }
 }
 
@@ -34,9 +36,9 @@ pub enum Xino {
     Off,
 }
 
-impl Into<MountOption<OverlayFsOption>> for Xino {
-    fn into(self) -> MountOption<OverlayFsOption> {
-        MountOption::FsSpecific(OverlayFsOption::Xino(self))
+impl From<Xino> for MountOption<OverlayFsOption> {
+    fn from(val: Xino) -> Self {
+        MountOption::FsSpecific(OverlayFsOption::Xino(val))
     }
 }
 
@@ -104,43 +106,48 @@ impl MOption for OverlayFsOption {
         }
         false
     }
+}
 
-    fn to_string(&self) -> String {
-        match self {
-            OverlayFsOption::RedirectDir(o) => match o {
-                RedirectDir::On => "redirect_dir=on",
-                RedirectDir::Follow => "redirect_dir=follow",
-                RedirectDir::NoFollow => "redirect_dir=nofollow",
-                RedirectDir::Off => "redirect_dir=off",
-            },
-            OverlayFsOption::Metacopy(o) => match *o {
-                true => "metacopy=on",
-                false => "metacopy=off",
-            },
-            OverlayFsOption::FsVerity(o) => match o {
-                FsVerity::On => "verity=on",
-                FsVerity::Require => "verity=required",
-                FsVerity::Off => "verity=off",
-            },
-            OverlayFsOption::Index(o) => match o {
-                true => "index=on",
-                false => "index=off",
-            },
-            OverlayFsOption::Uuid(_) => todo!(),
-            OverlayFsOption::Xino(o) => match o {
-                Xino::On => "xino=on",
-                Xino::Auto => "xino=auto",
-                Xino::Off => "xino=off",
-            },
-            OverlayFsOption::UserXattr => "userxattr",
-            OverlayFsOption::Volatile => "volatile",
-        }
-        .to_string()
+impl Display for OverlayFsOption {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                OverlayFsOption::RedirectDir(o) => match o {
+                    RedirectDir::On => "redirect_dir=on",
+                    RedirectDir::Follow => "redirect_dir=follow",
+                    RedirectDir::NoFollow => "redirect_dir=nofollow",
+                    RedirectDir::Off => "redirect_dir=off",
+                },
+                OverlayFsOption::Metacopy(o) => match *o {
+                    true => "metacopy=on",
+                    false => "metacopy=off",
+                },
+                OverlayFsOption::FsVerity(o) => match o {
+                    FsVerity::On => "verity=on",
+                    FsVerity::Require => "verity=required",
+                    FsVerity::Off => "verity=off",
+                },
+                OverlayFsOption::Index(o) => match o {
+                    true => "index=on",
+                    false => "index=off",
+                },
+                OverlayFsOption::Uuid(_) => todo!(),
+                OverlayFsOption::Xino(o) => match o {
+                    Xino::On => "xino=on",
+                    Xino::Auto => "xino=auto",
+                    Xino::Off => "xino=off",
+                },
+                OverlayFsOption::UserXattr => "userxattr",
+                OverlayFsOption::Volatile => "volatile",
+            }
+        )
     }
 }
 
-impl Into<MountOption<OverlayFsOption>> for OverlayFsOption {
-    fn into(self) -> MountOption<OverlayFsOption> {
-        MountOption::FsSpecific(self)
+impl From<OverlayFsOption> for MountOption<OverlayFsOption> {
+    fn from(val: OverlayFsOption) -> Self {
+        MountOption::FsSpecific(val)
     }
 }

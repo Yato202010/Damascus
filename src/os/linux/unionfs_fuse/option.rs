@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{fmt::Display, path::PathBuf};
 
 use crate::{MOption, MountOption};
 
@@ -31,23 +31,29 @@ impl MOption for UnionFsFuseOption {
         // TODO : find incompatible mount option and define compatibility matrix
         false
     }
+}
 
-    fn to_string(&self) -> String {
-        match self {
-            UnionFsFuseOption::Chroot(x) => "chroot=".to_string() + &x.to_string_lossy(),
-            UnionFsFuseOption::Cow => "cow".to_owned(),
-            UnionFsFuseOption::PreserveBranch => "preserve_branch".to_owned(),
-            UnionFsFuseOption::HideMetaFiles => "hide_meta_files".to_owned(),
-            UnionFsFuseOption::MaxFile(x) => format!("max_files={}", x),
-            UnionFsFuseOption::RelaxedPermission => "relaxed_permissions".to_owned(),
-            UnionFsFuseOption::StatfsOmitRo => "statfs_omit_ro".to_owned(),
-            UnionFsFuseOption::DirectIo => "direct_io".to_owned(),
-        }
+impl Display for UnionFsFuseOption {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                UnionFsFuseOption::Chroot(x) => "chroot=".to_string() + &x.to_string_lossy(),
+                UnionFsFuseOption::Cow => "cow".to_owned(),
+                UnionFsFuseOption::PreserveBranch => "preserve_branch".to_owned(),
+                UnionFsFuseOption::HideMetaFiles => "hide_meta_files".to_owned(),
+                UnionFsFuseOption::MaxFile(x) => format!("max_files={}", x),
+                UnionFsFuseOption::RelaxedPermission => "relaxed_permissions".to_owned(),
+                UnionFsFuseOption::StatfsOmitRo => "statfs_omit_ro".to_owned(),
+                UnionFsFuseOption::DirectIo => "direct_io".to_owned(),
+            }
+        )
     }
 }
 
-impl Into<MountOption<UnionFsFuseOption>> for UnionFsFuseOption {
-    fn into(self) -> MountOption<UnionFsFuseOption> {
-        MountOption::FsSpecific(self)
+impl From<UnionFsFuseOption> for MountOption<UnionFsFuseOption> {
+    fn from(val: UnionFsFuseOption) -> Self {
+        MountOption::FsSpecific(val)
     }
 }
