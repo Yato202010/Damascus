@@ -1,5 +1,5 @@
 /*
-* implementation inspired by libmount crate
+* Implementation inspired by libmount crate
 * https://github.com/tailhook/libmount/blob/master/src/overlay.rs
 *
 */
@@ -8,13 +8,13 @@ pub mod option;
 
 use std::{
     ffi::{CStr, CString},
-    io,
+    io::{self, Result},
     path::{Path, PathBuf},
 };
 
 use crate::{
-    common::{fs::Filesystem, option::MountOption},
-    os::{AsCString, AsPath},
+    common::fs::Filesystem,
+    os::{AsCString, AsPath, LinuxFilesystem, MountOption},
     PartitionID, StackableFilesystem,
 };
 use nix::{
@@ -45,7 +45,7 @@ impl OverlayFs {
         work: Option<C>,
         target: D,
         drop: bool,
-    ) -> Result<OverlayFs, io::Error>
+    ) -> Result<OverlayFs>
     where
         I: Iterator<Item = &'x Path>,
         B: Into<PathBuf>,
@@ -65,7 +65,7 @@ impl OverlayFs {
 
     #[must_use = "initialised OverlayFs handle should be used"]
     #[inline]
-    pub fn readonly<I, A, T>(lower: I, target: T) -> Result<OverlayFs, io::Error>
+    pub fn readonly<I, A, T>(lower: I, target: T) -> Result<OverlayFs>
     where
         I: Iterator<Item = A>,
         A: AsRef<Path>,
@@ -91,12 +91,7 @@ impl OverlayFs {
 
     #[must_use = "initialised OverlayFs handle should be used"]
     #[inline]
-    pub fn writable<I, A, B, C, D>(
-        lower: I,
-        upper: B,
-        work: C,
-        target: D,
-    ) -> Result<OverlayFs, io::Error>
+    pub fn writable<I, A, B, C, D>(lower: I, upper: B, work: C, target: D) -> Result<OverlayFs>
     where
         I: Iterator<Item = A>,
         A: AsRef<Path>,
@@ -127,7 +122,7 @@ impl OverlayFs {
     }
 
     #[inline]
-    pub fn set_work(&mut self, work: PathBuf) -> Result<(), io::Error> {
+    pub fn set_work(&mut self, work: PathBuf) -> Result<()> {
         if PartitionID::try_from(work.as_path())?
             != PartitionID::try_from(
                 self.upper
@@ -149,9 +144,9 @@ impl OverlayFs {
     }
 }
 
-impl Filesystem<OverlayFsOption> for OverlayFs {
+impl Filesystem for OverlayFs {
     #[inline]
-    fn mount(&mut self) -> Result<PathBuf, io::Error> {
+    fn mount(&mut self) -> Result<PathBuf> {
         if matches!(self.id,Some(x) if x == PartitionID::try_from(self.target.as_path())?) {
             debug!("Damascus: partition already mounted");
             return Ok(self.target.as_path().to_path_buf());
@@ -194,7 +189,7 @@ impl Filesystem<OverlayFsOption> for OverlayFs {
     }
 
     #[inline]
-    fn unmount(&mut self) -> Result<(), io::Error> {
+    fn unmount(&mut self) -> Result<()> {
         if matches!(self.id,Some(x) if x == PartitionID::try_from(self.target.as_path())?) {
             umount2(self.target.as_c_str(), MntFlags::MNT_DETACH)?;
             self.id = None;
@@ -218,12 +213,12 @@ impl Filesystem<OverlayFsOption> for OverlayFs {
     }
 
     #[inline]
-    fn target(&self) -> Result<PathBuf, io::Error> {
+    fn target(&self) -> Result<PathBuf> {
         Ok(self.target.as_path().to_path_buf())
     }
 
     #[inline]
-    fn set_target(&mut self, target: &dyn AsRef<Path>) -> Result<(), io::Error> {
+    fn set_target(&mut self, target: &dyn AsRef<Path>) -> Result<()> {
         if self.id.is_some() {
             return Err(io::Error::new(
                 io::ErrorKind::Other,
@@ -242,10 +237,14 @@ impl Filesystem<OverlayFsOption> for OverlayFs {
         }
     }
 
-    fn set_option(
-        &mut self,
-        option: impl Into<MountOption<OverlayFsOption>>,
-    ) -> Result<(), io::Error> {
+    fn from_target(target: &dyn AsRef<Path>) -> Result<Self> {
+        // TODO : from_target
+        todo!()
+    }
+}
+
+impl LinuxFilesystem<OverlayFsOption> for OverlayFs {
+    fn set_option(&mut self, option: impl Into<MountOption<OverlayFsOption>>) -> Result<()> {
         let option = option.into();
         for (i, opt) in self.options.clone().iter().enumerate() {
             // If Option is already set with another value, overwrite it
@@ -267,10 +266,7 @@ impl Filesystem<OverlayFsOption> for OverlayFs {
         Ok(())
     }
 
-    fn remove_option(
-        &mut self,
-        option: impl Into<MountOption<OverlayFsOption>>,
-    ) -> Result<(), io::Error> {
+    fn remove_option(&mut self, option: impl Into<MountOption<OverlayFsOption>>) -> Result<()> {
         let option = option.into();
         let idx = self.options.iter().position(|x| *x == option);
         if let Some(idx) = idx {
@@ -284,14 +280,14 @@ impl Filesystem<OverlayFsOption> for OverlayFs {
     }
 }
 
-impl StackableFilesystem<OverlayFsOption> for OverlayFs {
+impl StackableFilesystem for OverlayFs {
     #[inline]
     fn lower(&self) -> Vec<&Path> {
         self.lower.iter().map(|x| x.as_path()).collect()
     }
 
     #[inline]
-    fn set_lower(&mut self, lower: Vec<PathBuf>) -> Result<(), io::Error> {
+    fn set_lower(&mut self, lower: Vec<PathBuf>) -> Result<()> {
         if self.id.is_some() {
             return Err(io::Error::new(
                 io::ErrorKind::Other,
@@ -308,7 +304,7 @@ impl StackableFilesystem<OverlayFsOption> for OverlayFs {
     }
 
     #[inline]
-    fn set_upper(&mut self, upper: PathBuf) -> Result<(), io::Error> {
+    fn set_upper(&mut self, upper: PathBuf) -> Result<()> {
         if PartitionID::try_from(upper.as_path())?
             != PartitionID::try_from(
                 self.work

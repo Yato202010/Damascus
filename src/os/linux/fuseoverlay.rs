@@ -8,7 +8,7 @@ use cfg_if::cfg_if;
 use option::FuseOverlayFsOption;
 use std::{
     ffi::CString,
-    io,
+    io::{self, Result},
     path::{Path, PathBuf},
     process::Command,
 };
@@ -17,7 +17,7 @@ use tracing::{debug, error};
 use crate::{
     common::fs::Filesystem,
     os::{AsCString, AsPath},
-    MountOption, PartitionID, StackableFilesystem,
+    LinuxFilesystem, MountOption, PartitionID, StackableFilesystem,
 };
 
 #[derive(Debug)]
@@ -42,7 +42,7 @@ impl FuseOverlayFs {
         work: Option<C>,
         target: D,
         drop: bool,
-    ) -> Result<FuseOverlayFs, io::Error>
+    ) -> Result<FuseOverlayFs>
     where
         I: Iterator<Item = &'x Path>,
         B: Into<PathBuf>,
@@ -70,7 +70,7 @@ impl FuseOverlayFs {
     #[must_use = "initialised FuseOverlayFs handle should be used"]
     #[inline]
     /// Initialise a new readonly FuseOverlayFs handle
-    pub fn readonly<I, A, T>(lower: I, target: T) -> Result<FuseOverlayFs, io::Error>
+    pub fn readonly<I, A, T>(lower: I, target: T) -> Result<FuseOverlayFs>
     where
         I: Iterator<Item = A>,
         A: AsRef<Path>,
@@ -97,12 +97,7 @@ impl FuseOverlayFs {
     #[must_use = "initialised FuseOverlayFs handle should be used"]
     #[inline]
     /// Initialise a new writable FuseOverlayFs handle
-    pub fn writable<I, A, B, C, D>(
-        lower: I,
-        upper: B,
-        work: C,
-        target: D,
-    ) -> Result<FuseOverlayFs, io::Error>
+    pub fn writable<I, A, B, C, D>(lower: I, upper: B, work: C, target: D) -> Result<FuseOverlayFs>
     where
         I: Iterator<Item = A>,
         A: AsRef<Path>,
@@ -133,7 +128,7 @@ impl FuseOverlayFs {
     }
 
     #[inline]
-    pub fn set_work(&mut self, work: PathBuf) -> Result<(), io::Error> {
+    pub fn set_work(&mut self, work: PathBuf) -> Result<()> {
         if PartitionID::try_from(work.as_path())?
             != PartitionID::try_from(
                 self.upper
@@ -155,9 +150,9 @@ impl FuseOverlayFs {
     }
 }
 
-impl Filesystem<FuseOverlayFsOption> for FuseOverlayFs {
+impl Filesystem for FuseOverlayFs {
     #[inline]
-    fn mount(&mut self) -> Result<PathBuf, io::Error> {
+    fn mount(&mut self) -> Result<PathBuf> {
         if matches!(self.id,Some(x) if x == PartitionID::try_from(self.target.as_path())?) {
             debug!("Damascus: partition already mounted");
             return Ok(PathBuf::from(&self.target.as_path()));
@@ -250,7 +245,7 @@ impl Filesystem<FuseOverlayFsOption> for FuseOverlayFs {
     }
 
     #[inline]
-    fn unmount(&mut self) -> Result<(), io::Error> {
+    fn unmount(&mut self) -> Result<()> {
         if matches!(self.id,Some(x) if x == PartitionID::try_from(self.target.as_path())?) {
             let child = Command::new("fusermount")
                 .args(["-z", "-u"])
@@ -288,12 +283,12 @@ impl Filesystem<FuseOverlayFsOption> for FuseOverlayFs {
     }
 
     #[inline]
-    fn target(&self) -> Result<PathBuf, io::Error> {
+    fn target(&self) -> Result<PathBuf> {
         Ok(self.target.as_path().to_path_buf())
     }
 
     #[inline]
-    fn set_target(&mut self, target: &dyn AsRef<Path>) -> Result<(), io::Error> {
+    fn set_target(&mut self, target: &dyn AsRef<Path>) -> Result<()> {
         if self.id.is_some() {
             return Err(io::Error::new(
                 io::ErrorKind::Other,
@@ -320,10 +315,14 @@ impl Filesystem<FuseOverlayFsOption> for FuseOverlayFs {
         }
     }
 
-    fn set_option(
-        &mut self,
-        option: impl Into<MountOption<FuseOverlayFsOption>>,
-    ) -> Result<(), io::Error> {
+    fn from_target(target: &dyn AsRef<Path>) -> Result<Self> {
+        // TODO : from_target
+        todo!()
+    }
+}
+
+impl LinuxFilesystem<FuseOverlayFsOption> for FuseOverlayFs {
+    fn set_option(&mut self, option: impl Into<MountOption<FuseOverlayFsOption>>) -> Result<()> {
         let option = option.into();
         for (i, opt) in self.options.clone().iter().enumerate() {
             // If Option is already set with another value, overwrite it
@@ -345,10 +344,7 @@ impl Filesystem<FuseOverlayFsOption> for FuseOverlayFs {
         Ok(())
     }
 
-    fn remove_option(
-        &mut self,
-        option: impl Into<MountOption<FuseOverlayFsOption>>,
-    ) -> Result<(), io::Error> {
+    fn remove_option(&mut self, option: impl Into<MountOption<FuseOverlayFsOption>>) -> Result<()> {
         let option = option.into();
         let idx = self.options.iter().position(|x| *x == option);
         if let Some(idx) = idx {
@@ -362,14 +358,14 @@ impl Filesystem<FuseOverlayFsOption> for FuseOverlayFs {
     }
 }
 
-impl StackableFilesystem<FuseOverlayFsOption> for FuseOverlayFs {
+impl StackableFilesystem for FuseOverlayFs {
     #[inline]
     fn lower(&self) -> Vec<&Path> {
         self.lower.iter().map(|x| x.as_path()).collect()
     }
 
     #[inline]
-    fn set_lower(&mut self, lower: Vec<PathBuf>) -> Result<(), io::Error> {
+    fn set_lower(&mut self, lower: Vec<PathBuf>) -> Result<()> {
         if self.id.is_some() {
             return Err(io::Error::new(
                 io::ErrorKind::Other,
@@ -386,7 +382,7 @@ impl StackableFilesystem<FuseOverlayFsOption> for FuseOverlayFs {
     }
 
     #[inline]
-    fn set_upper(&mut self, upper: PathBuf) -> Result<(), io::Error> {
+    fn set_upper(&mut self, upper: PathBuf) -> Result<()> {
         if PartitionID::try_from(upper.as_path())?
             != PartitionID::try_from(
                 self.work

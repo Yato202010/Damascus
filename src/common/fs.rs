@@ -1,24 +1,18 @@
-use crate::{
-    common::option::{MOption, MountOption},
-    PartitionID,
-};
+use crate::PartitionID;
 use std::{
-    io,
+    io::Result,
     path::{Path, PathBuf},
 };
 
 /// Common trait for all filesystem handle
-pub trait Filesystem<O>
-where
-    O: MOption,
-{
+pub trait Filesystem: Sized {
     #[must_use = "Error on filesystem operation should be handled"]
     /// Request a handle to mount the filesystem, returning a PathBuf pointing to the mount point
-    fn mount(&mut self) -> Result<PathBuf, io::Error>;
+    fn mount(&mut self) -> Result<PathBuf>;
 
     #[must_use = "Error on filesystem operation should be handled"]
     /// Request a handle to unmount the filesystem
-    fn unmount(&mut self) -> Result<(), io::Error>;
+    fn unmount(&mut self) -> Result<()>;
 
     /// Retrieve unmount_on_drop property
     fn unmount_on_drop(&self) -> bool;
@@ -32,10 +26,10 @@ where
     fn id(&self) -> Option<&PartitionID>;
 
     /// Retrieve the mount point as PathBuf
-    fn target(&self) -> Result<PathBuf, io::Error>;
+    fn target(&self) -> Result<PathBuf>;
 
     /// Set Target mount point
-    fn set_target(&mut self, target: &dyn AsRef<Path>) -> Result<(), io::Error>;
+    fn set_target(&mut self, target: &dyn AsRef<Path>) -> Result<()>;
 
     /// Get if the filesystem is available
     fn is_available() -> bool
@@ -47,36 +41,25 @@ where
         self.id().is_some()
     }
 
-    fn set_option(&mut self, option: impl Into<MountOption<O>>) -> Result<(), io::Error>;
-
-    fn remove_option(&mut self, option: impl Into<MountOption<O>>) -> Result<(), io::Error>;
-
-    fn options(&self) -> &[MountOption<O>];
+    fn from_target(target: &dyn AsRef<Path>) -> Result<Self>;
 }
 
 /// Common trait for all stackable/union/overlay filesystem handle
 #[allow(dead_code)]
-pub trait StackableFilesystem<O>: Filesystem<O>
-where
-    O: MOption,
-{
+pub trait StackableFilesystem: Filesystem {
     /// Retrieve a list of lower layer
     fn lower(&self) -> Vec<&Path>;
 
     /// Set lower layer
-    fn set_lower(&mut self, lower: Vec<PathBuf>) -> Result<(), io::Error>;
+    fn set_lower(&mut self, lower: Vec<PathBuf>) -> Result<()>;
 
     /// Retrieve upper layer if set
     fn upper(&self) -> Option<&Path>;
 
     /// Set upper layer
-    fn set_upper(&mut self, upper: PathBuf) -> Result<(), io::Error>;
+    fn set_upper(&mut self, upper: PathBuf) -> Result<()>;
 }
 
 /// Common trait for all case-insensitive filesystem handles
 #[allow(dead_code)]
-pub trait CaseInsensitive<O>: Filesystem<O>
-where
-    O: MOption,
-{
-}
+pub trait CaseInsensitive: Filesystem {}

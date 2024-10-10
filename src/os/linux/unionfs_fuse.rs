@@ -9,14 +9,16 @@ use cfg_if::cfg_if;
 use option::UnionFsFuseOption;
 use std::{
     ffi::CString,
-    io,
+    io::{self, Result},
     path::{Path, PathBuf},
     process::Command,
 };
 
 use tracing::{debug, error};
 
-use crate::{AsCString, AsPath, Filesystem, MountOption, PartitionID, StackableFilesystem};
+use crate::{
+    AsCString, AsPath, Filesystem, LinuxFilesystem, MountOption, PartitionID, StackableFilesystem,
+};
 
 #[derive(Debug)]
 /// Unionfs fuse filesystem handle
@@ -38,7 +40,7 @@ impl UnionFsFuse {
         upper: Option<B>,
         target: D,
         drop: bool,
-    ) -> Result<UnionFsFuse, io::Error>
+    ) -> Result<UnionFsFuse>
     where
         I: Iterator<Item = &'x Path>,
         B: Into<PathBuf>,
@@ -58,7 +60,7 @@ impl UnionFsFuse {
     #[must_use = "initialised UnionFsFuse handle should be used"]
     #[inline]
     /// Initialise a new readonly UnionFsFuse handle
-    pub fn readonly<I, A, T>(lower: I, target: T) -> Result<UnionFsFuse, io::Error>
+    pub fn readonly<I, A, T>(lower: I, target: T) -> Result<UnionFsFuse>
     where
         I: Iterator<Item = A>,
         A: AsRef<Path>,
@@ -84,7 +86,7 @@ impl UnionFsFuse {
     #[must_use = "initialised UnionFsFuse handle should be used"]
     #[inline]
     /// Initialise a new writable UnionFsFuse handle
-    pub fn writable<I, A, B, D>(lower: I, upper: B, target: D) -> Result<Self, io::Error>
+    pub fn writable<I, A, B, D>(lower: I, upper: B, target: D) -> Result<Self>
     where
         I: Iterator<Item = A>,
         A: AsRef<Path>,
@@ -102,9 +104,9 @@ impl UnionFsFuse {
     }
 }
 
-impl Filesystem<UnionFsFuseOption> for UnionFsFuse {
+impl Filesystem for UnionFsFuse {
     #[inline]
-    fn mount(&mut self) -> Result<PathBuf, io::Error> {
+    fn mount(&mut self) -> Result<PathBuf> {
         if matches!(self.id,Some(x) if x == PartitionID::try_from(self.target.as_path())?) {
             debug!("Damascus: partition already mounted");
             return Ok(PathBuf::from(&self.target.as_path()));
@@ -193,7 +195,7 @@ impl Filesystem<UnionFsFuseOption> for UnionFsFuse {
     }
 
     #[inline]
-    fn unmount(&mut self) -> Result<(), io::Error> {
+    fn unmount(&mut self) -> Result<()> {
         if matches!(self.id,Some(x) if x == PartitionID::try_from(self.target.as_path())?) {
             let child = Command::new("fusermount")
                 .args(["-z", "-u"])
@@ -231,12 +233,12 @@ impl Filesystem<UnionFsFuseOption> for UnionFsFuse {
     }
 
     #[inline]
-    fn target(&self) -> Result<PathBuf, io::Error> {
+    fn target(&self) -> Result<PathBuf> {
         Ok(self.target.as_path().to_path_buf())
     }
 
     #[inline]
-    fn set_target(&mut self, target: &dyn AsRef<Path>) -> Result<(), io::Error> {
+    fn set_target(&mut self, target: &dyn AsRef<Path>) -> Result<()> {
         if self.id.is_some() {
             return Err(io::Error::new(
                 io::ErrorKind::Other,
@@ -263,10 +265,17 @@ impl Filesystem<UnionFsFuseOption> for UnionFsFuse {
         }
     }
 
+    fn from_target(target: &dyn AsRef<Path>) -> Result<Self> {
+        // TODO : from_target
+        todo!()
+    }
+}
+
+impl LinuxFilesystem<UnionFsFuseOption> for UnionFsFuse {
     fn set_option(
         &mut self,
         option: impl Into<crate::MountOption<UnionFsFuseOption>>,
-    ) -> Result<(), io::Error> {
+    ) -> Result<()> {
         let option = option.into();
         for (i, opt) in self.options.clone().iter().enumerate() {
             // If Option is already set with another value, overwrite it
@@ -291,7 +300,7 @@ impl Filesystem<UnionFsFuseOption> for UnionFsFuse {
     fn remove_option(
         &mut self,
         option: impl Into<crate::MountOption<UnionFsFuseOption>>,
-    ) -> Result<(), io::Error> {
+    ) -> Result<()> {
         let option = option.into();
         let idx = self.options.iter().position(|x| *x == option);
         if let Some(idx) = idx {
@@ -305,14 +314,14 @@ impl Filesystem<UnionFsFuseOption> for UnionFsFuse {
     }
 }
 
-impl StackableFilesystem<UnionFsFuseOption> for UnionFsFuse {
+impl StackableFilesystem for UnionFsFuse {
     #[inline]
     fn lower(&self) -> Vec<&Path> {
         self.lower.iter().map(|x| x.as_path()).collect()
     }
 
     #[inline]
-    fn set_lower(&mut self, lower: Vec<PathBuf>) -> Result<(), io::Error> {
+    fn set_lower(&mut self, lower: Vec<PathBuf>) -> Result<()> {
         if self.id.is_some() {
             return Err(io::Error::new(
                 io::ErrorKind::Other,
@@ -329,7 +338,7 @@ impl StackableFilesystem<UnionFsFuseOption> for UnionFsFuse {
     }
 
     #[inline]
-    fn set_upper(&mut self, upper: PathBuf) -> Result<(), io::Error> {
+    fn set_upper(&mut self, upper: PathBuf) -> Result<()> {
         if self.id.is_some() {
             return Err(io::Error::new(
                 io::ErrorKind::Other,

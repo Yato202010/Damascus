@@ -6,7 +6,6 @@ mod common;
 mod os;
 pub use common::{
     fs::{Filesystem, StackableFilesystem},
-    option::*,
     utils::partition::PartitionID,
 };
 
