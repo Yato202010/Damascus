@@ -1,7 +1,6 @@
-use std::fmt::Display;
+use crate::{FsOption, MountOption};
 
-use crate::{MOption, MountOption};
-
+use std::{fmt::Display, str::FromStr};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FuseOverlayFsOption {
     // /// Use separate fuse device fd for each thread
@@ -26,11 +25,10 @@ pub enum FuseOverlayFsOption {
     StaticNLink,
     /// Disable ACL support in the FUSE file system
     NoAcl,
-    // -o uidmapping=UID:MAPPED-UID:LEN[,UID2:MAPPED-UID2:LEN2] -o gidmapping=GID:MAPPED-GID:LEN[,GID2:MAPPED-GID2:LEN2] Specifies the dynamic UID/GID mapping used by fuse-
-    //       overlayfs when reading/writing files to the system.
+    // TODO : look into uidmapping and gidmapping
 }
 
-impl MOption for FuseOverlayFsOption {
+impl FsOption for FuseOverlayFsOption {
     fn defaults() -> Vec<Self> {
         vec![]
     }
@@ -41,6 +39,52 @@ impl MOption for FuseOverlayFsOption {
     }
 }
 
+impl FromStr for FuseOverlayFsOption {
+    type Err = std::io::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if let Some((op, va)) = s.split_once('=') {
+            match op {
+                "max_idle_threads" => {
+                    if let Ok(u) = va.parse() {
+                        return Ok(Self::MaxIdleThread(u));
+                    }
+                }
+                "max_threads" => {
+                    if let Ok(u) = va.parse() {
+                        return Ok(Self::MaxThread(u));
+                    }
+                }
+                "squash_to_uid" => {
+                    if let Ok(u) = va.parse() {
+                        return Ok(Self::SquashToUid(u));
+                    }
+                }
+                "squash_to_gid" => {
+                    if let Ok(u) = va.parse() {
+                        return Ok(Self::SquashToGid(u));
+                    }
+                }
+                _ => {}
+            };
+        }
+
+        Ok(match s {
+            "allow_other" => Self::AllowOther,
+            "allow_root" => Self::AllowRoot,
+            "squash_to_root" => Self::SquashToRoot,
+            "static_nlink" => Self::StaticNLink,
+            "noacl" => Self::NoAcl,
+            // "clone_fd" => Self::CloneFd,
+            _ => {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::Unsupported,
+                    "Unsupported mount option",
+                ));
+            }
+        })
+    }
+}
 impl Display for FuseOverlayFsOption {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(

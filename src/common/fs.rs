@@ -63,3 +63,10 @@ pub trait StackableFilesystem: Filesystem {
 /// Common trait for all case-insensitive filesystem handles
 #[allow(dead_code)]
 pub trait CaseInsensitive: Filesystem {}
+
+/// Common trait for all filesystem handles that can be recovered by using system information
+/// ex: /etc/mtab on Linux, etc...
+#[allow(dead_code)]
+pub trait StateRecovery: Filesystem {
+    fn recover<P: AsRef<PathBuf>>(path: P) -> Result<Self>;
+}

@@ -1,6 +1,5 @@
-use std::fmt::Display;
-
-use crate::{MOption, MountOption};
+use crate::{FsOption, MountOption};
+use std::{fmt::Display, str::FromStr};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RedirectDir {
@@ -84,7 +83,7 @@ pub enum OverlayFsOption {
     // NfsExport,
 }
 
-impl MOption for OverlayFsOption {
+impl FsOption for OverlayFsOption {
     fn defaults() -> Vec<Self> {
         vec![
             OverlayFsOption::RedirectDir(RedirectDir::On),
@@ -105,6 +104,58 @@ impl MOption for OverlayFsOption {
             }
         }
         false
+    }
+}
+
+impl FromStr for OverlayFsOption {
+    type Err = std::io::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if let Some((op, va)) = s.split_once('=') {
+            match op {
+                "redirect_dir" => match va {
+                    "on" => return Ok(Self::RedirectDir(RedirectDir::On)),
+                    "off" => return Ok(Self::RedirectDir(RedirectDir::Off)),
+                    "nofollow" => return Ok(Self::RedirectDir(RedirectDir::NoFollow)),
+                    "follow" => return Ok(Self::RedirectDir(RedirectDir::Follow)),
+                    _ => {}
+                },
+                "metacopy" => match va {
+                    "on" => return Ok(Self::Metacopy(true)),
+                    "off" => return Ok(Self::Metacopy(false)),
+                    _ => {}
+                },
+                "fs_verify" => match va {
+                    "on" => return Ok(OverlayFsOption::FsVerity(FsVerity::On)),
+                    "required" => return Ok(Self::FsVerity(FsVerity::Require)),
+                    "off" => return Ok(Self::FsVerity(FsVerity::Off)),
+                    _ => {}
+                },
+                "index" => match va {
+                    "on" => return Ok(Self::Index(true)),
+                    "off" => return Ok(Self::Index(false)),
+                    _ => {}
+                },
+                "xino" => match va {
+                    "on" => return Ok(Self::Xino(Xino::On)),
+                    "auto" => return Ok(Self::Xino(Xino::Auto)),
+                    "off" => return Ok(Self::Xino(Xino::Off)),
+                    _ => {}
+                },
+                _ => {}
+            };
+        }
+
+        Ok(match s {
+            "userxattr" => Self::UserXattr,
+            "volatile" => Self::Volatile,
+            _ => {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::Unsupported,
+                    "Unsupported mount option",
+                ));
+            }
+        })
     }
 }
 

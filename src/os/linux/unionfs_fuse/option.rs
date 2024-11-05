@@ -1,6 +1,6 @@
-use std::{fmt::Display, path::PathBuf};
+use std::{fmt::Display, path::PathBuf, str::FromStr};
 
-use crate::{MOption, MountOption};
+use crate::{FsOption, MountOption};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum UnionFsFuseOption {
@@ -22,7 +22,7 @@ pub enum UnionFsFuseOption {
     DirectIo,
 }
 
-impl MOption for UnionFsFuseOption {
+impl FsOption for UnionFsFuseOption {
     fn defaults() -> Vec<Self> {
         vec![UnionFsFuseOption::Cow, UnionFsFuseOption::HideMetaFiles]
     }
@@ -30,6 +30,41 @@ impl MOption for UnionFsFuseOption {
     fn incompatible(&self, other: &MountOption<Self>) -> bool {
         // TODO : find incompatible mount option and define compatibility matrix
         false
+    }
+}
+
+impl FromStr for UnionFsFuseOption {
+    type Err = std::io::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if let Some((op, va)) = s.split_once('=') {
+            match op {
+                "max_files" => {
+                    if let Ok(u) = va.parse() {
+                        return Ok(Self::MaxFile(u));
+                    }
+                }
+                "chroot" => {
+                    return Ok(Self::Chroot(PathBuf::from(va)));
+                }
+                _ => {}
+            };
+        }
+
+        Ok(match s {
+            "cow" => Self::Cow,
+            "preserve_branch" => Self::PreserveBranch,
+            "hide_meta_files" => Self::HideMetaFiles,
+            "relaxed_permissions" => Self::RelaxedPermission,
+            "statfs_omit_ro" => UnionFsFuseOption::StatfsOmitRo,
+            "direct_io" => Self::DirectIo,
+            _ => {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::Unsupported,
+                    "Unsupported mount option",
+                ));
+            }
+        })
     }
 }
 
