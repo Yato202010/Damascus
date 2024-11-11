@@ -1,23 +1,22 @@
 #[cfg(feature = "unionfs-fuse")]
 mod unionfs_fuse;
 #[cfg(feature = "unionfs-fuse")]
-pub use unionfs_fuse::UnionFsFuse;
+pub use unionfs_fuse::{opt::*, UnionFsFuse};
 #[cfg(feature = "fuse-overlayfs")]
 mod fuseoverlay;
 #[cfg(feature = "fuse-overlayfs")]
-pub use fuseoverlay::FuseOverlayFs;
+pub use fuseoverlay::{opt::*, FuseOverlayFs};
 #[cfg(feature = "overlayfs")]
 mod overlay;
 #[cfg(feature = "overlayfs")]
-pub use overlay::{option::*, OverlayFs};
+pub use overlay::{opt::*, OverlayFs};
 
 pub use option::{FsOption, LinuxFilesystem, MountOption};
+
 /// Provide utility to recover filesystem state from the information provided by the system
+#[allow(dead_code)]
 mod recover_state {
-    use std::ffi::{CStr, CString};
-    use std::io::Result;
-    use std::path::Path;
-    use std::str::FromStr;
+    use std::{ffi::CStr, io::Result, path::Path, str::FromStr};
 
     use nix::libc::{getmntent, setmntent};
 
@@ -27,16 +26,25 @@ mod recover_state {
 
     #[derive(Debug)]
     pub struct FsData<O: FsOption> {
-        option: Vec<MountOption<O>>,
+        options: Vec<MountOption<O>>,
+    }
+
+    impl<O: FsOption> FsData<O> {
+        pub fn options(&self) -> &[MountOption<O>] {
+            &self.options
+        }
     }
 
     pub fn restore_fsdata<P: AsRef<Path>, O: FsOption>(path: P) -> Result<Option<FsData<O>>> {
         let fd = unsafe {
-            let mtab = CString::new("/etc/mtab").unwrap();
+            let mtab = CStr::from_bytes_with_nul_unchecked(b"/etc/mtab\0");
             setmntent(mtab.as_ptr(), "r".as_ptr() as *const i8)
         };
         if fd.is_null() {
-            panic!("cannot setmntent :{}", std::io::Error::last_os_error())
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "Cannot setmntent",
+            ));
         }
 
         let mut cont = true;
@@ -45,16 +53,13 @@ mod recover_state {
             if let Some(fs) = fs {
                 let target = unsafe { CStr::from_ptr(fs.mnt_dir) };
                 if target.as_path() == path.as_ref() {
-                    dbg!(target);
-                    let opts = dbg!(unsafe { CStr::from_ptr(fs.mnt_opts) });
+                    let opts = unsafe { CStr::from_ptr(fs.mnt_opts) };
                     let option = opts
                         .to_string_lossy()
                         .split(',')
-                        .map(|x| MountOption::from_str(x))
-                        .filter(|x| x.is_ok())
-                        .map(|x| x.unwrap())
+                        .flat_map(MountOption::from_str)
                         .collect();
-                    return Ok(Some(FsData { option }));
+                    return Ok(Some(FsData { options: option }));
                 }
             } else {
                 cont = false
@@ -62,20 +67,6 @@ mod recover_state {
         }
         Ok(None)
     }
-
-    /*#[cfg(test)]
-    #[cfg(feature = "fuse-overlayfs")]
-    mod tests {
-        use crate::os::linux::{
-            fuseoverlay::option::FuseOverlayFsOption, recover_state::restore_fsdata,
-        };
-
-        #[test]
-        fn get_mounts() {
-            dbg!(restore_fsdata::<&str, FuseOverlayFsOption>("/tmp/rstest/mount/").unwrap());
-            todo!()
-        }
-    }*/
 }
 
 mod option {
@@ -103,6 +94,7 @@ mod option {
         RO,
         Suid(bool),
         FsSpecific(O),
+        Other(String),
     }
 
     impl<T: FsOption> MountOption<T> {
@@ -132,15 +124,10 @@ mod option {
                 "suid" => MountOption::Suid(true),
                 "nosuid" => MountOption::Suid(false),
                 _ => {
-                    let res = T::from_str(s)
-                        .map(|x| MountOption::FsSpecific(x))
-                        .map_err(|_e| {
-                            std::io::Error::new(
-                                std::io::ErrorKind::Unsupported,
-                                "Unsupported mount option",
-                            )
-                        });
-                    return res;
+                    let res = T::from_str(s).map_or(MountOption::Other(s.to_string()), |x| {
+                        MountOption::FsSpecific(x)
+                    });
+                    return Ok(res);
                 }
             })
         }
@@ -153,6 +140,7 @@ mod option {
                 Self::RW => "rw".to_owned(),
                 Self::RO => "ro".to_owned(),
                 Self::Suid(b) => if *b { "suid" } else { "nosuid" }.to_owned(),
+                Self::Other(x) => x.to_owned(),
             };
             write!(f, "{}", str)
         }

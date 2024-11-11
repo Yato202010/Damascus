@@ -26,7 +26,7 @@ pub trait Filesystem: Sized {
     fn id(&self) -> Option<&PartitionID>;
 
     /// Retrieve the mount point as PathBuf
-    fn target(&self) -> Result<PathBuf>;
+    fn target(&self) -> PathBuf;
 
     /// Set Target mount point
     fn set_target(&mut self, target: &dyn AsRef<Path>) -> Result<()>;
@@ -40,8 +40,6 @@ pub trait Filesystem: Sized {
     fn mounted(&self) -> bool {
         self.id().is_some()
     }
-
-    fn from_target(target: &dyn AsRef<Path>) -> Result<Self>;
 }
 
 /// Common trait for all stackable/union/overlay filesystem handle
@@ -68,5 +66,5 @@ pub trait CaseInsensitive: Filesystem {}
 /// ex: /etc/mtab on Linux, etc...
 #[allow(dead_code)]
 pub trait StateRecovery: Filesystem {
-    fn recover<P: AsRef<PathBuf>>(path: P) -> Result<Self>;
+    fn recover<P: AsRef<Path>>(path: P) -> Result<Self>;
 }

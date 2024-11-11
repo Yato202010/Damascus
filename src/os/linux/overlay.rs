@@ -4,25 +4,28 @@
 *
 */
 
-pub mod option;
+pub mod opt;
 
-use std::{
-    ffi::{CStr, CString},
-    io::{self, Result},
-    path::{Path, PathBuf},
-};
-
-use crate::{
-    common::fs::Filesystem,
-    os::{AsCString, AsPath, LinuxFilesystem, MountOption},
-    PartitionID, StackableFilesystem,
-};
 use nix::{
     mount::{mount, umount2, MntFlags, MsFlags},
     unistd::getuid,
 };
-use option::OverlayFsOption;
+use std::{
+    ffi::{CStr, CString},
+    io::{self, Error, Result},
+    path::{Path, PathBuf},
+};
 use tracing::{debug, error};
+
+use crate::{
+    common::fs::{Filesystem, StateRecovery},
+    os::{
+        linux::recover_state::{restore_fsdata, FsData},
+        linux::OverlayFsOption,
+        AsCString, AsPath, LinuxFilesystem, MountOption,
+    },
+    PartitionID, StackableFilesystem,
+};
 
 #[derive(Debug)]
 /// Kernel overlay filesystem handle
@@ -213,8 +216,8 @@ impl Filesystem for OverlayFs {
     }
 
     #[inline]
-    fn target(&self) -> Result<PathBuf> {
-        Ok(self.target.as_path().to_path_buf())
+    fn target(&self) -> PathBuf {
+        self.target.as_path().to_path_buf()
     }
 
     #[inline]
@@ -235,11 +238,6 @@ impl Filesystem for OverlayFs {
         } else {
             false
         }
-    }
-
-    fn from_target(target: &dyn AsRef<Path>) -> Result<Self> {
-        // TODO : from_target
-        todo!()
     }
 }
 
@@ -328,6 +326,60 @@ impl StackableFilesystem for OverlayFs {
         }
         self.upper = Some(upper);
         Ok(())
+    }
+}
+
+impl StateRecovery for OverlayFs {
+    fn recover<P: AsRef<Path>>(path: P) -> Result<Self> {
+        let path = path.as_ref();
+        let data: FsData<OverlayFsOption> = restore_fsdata(path)?.ok_or(Error::new(
+            io::ErrorKind::NotFound,
+            "OverlayFs not found at mount point : ".to_string() + &path.to_string_lossy(),
+        ))?;
+        let mut lower = vec![];
+        let mut upper = None;
+        let mut work = None;
+        let target = path.as_cstring();
+        let options = data
+            .options()
+            .iter()
+            .filter_map(|x| {
+                if let MountOption::Other(str) = x {
+                    let (o, va) = if let Some(x) = str.split_once('=') {
+                        x
+                    } else {
+                        return Some(x.to_owned());
+                    };
+                    match o {
+                        "lowerdir" => {
+                            for path in va.split(':') {
+                                lower.push(PathBuf::from(path))
+                            }
+                            return None;
+                        }
+                        "upperdir" => {
+                            upper = Some(PathBuf::from(va));
+                            return None;
+                        }
+                        "workdir" => {
+                            work = Some(PathBuf::from(va));
+                            return None;
+                        }
+                        _ => {}
+                    }
+                }
+                Some(x.to_owned())
+            })
+            .collect();
+        Ok(Self {
+            lower,
+            upper,
+            work,
+            target,
+            options,
+            id: Some(PartitionID::try_from(path)?),
+            drop: false,
+        })
     }
 }
 

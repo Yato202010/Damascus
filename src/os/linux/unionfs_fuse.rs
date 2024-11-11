@@ -3,21 +3,21 @@
 * https://github.com/tailhook/libmount/blob/master/src/overlay.rs
 */
 
-pub mod option;
+pub mod opt;
 
 use cfg_if::cfg_if;
-use option::UnionFsFuseOption;
 use std::{
     ffi::CString,
     io::{self, Result},
     path::{Path, PathBuf},
     process::Command,
 };
-
 use tracing::{debug, error};
 
 use crate::{
-    AsCString, AsPath, Filesystem, LinuxFilesystem, MountOption, PartitionID, StackableFilesystem,
+    common::fs::Filesystem,
+    os::{linux::UnionFsFuseOption, AsCString, AsPath},
+    LinuxFilesystem, MountOption, PartitionID, StackableFilesystem,
 };
 
 #[derive(Debug)]
@@ -233,8 +233,8 @@ impl Filesystem for UnionFsFuse {
     }
 
     #[inline]
-    fn target(&self) -> Result<PathBuf> {
-        Ok(self.target.as_path().to_path_buf())
+    fn target(&self) -> PathBuf {
+        self.target.as_path().to_path_buf()
     }
 
     #[inline]
@@ -263,11 +263,6 @@ impl Filesystem for UnionFsFuse {
                 .status()
                 .is_ok()
         }
-    }
-
-    fn from_target(target: &dyn AsRef<Path>) -> Result<Self> {
-        // TODO : from_target
-        todo!()
     }
 }
 

@@ -5,7 +5,7 @@
 mod common;
 mod os;
 pub use common::{
-    fs::{CaseInsensitive, Filesystem, StackableFilesystem},
+    fs::{CaseInsensitive, Filesystem, StackableFilesystem, StateRecovery},
     utils::partition::PartitionID,
 };
 pub use os::*;

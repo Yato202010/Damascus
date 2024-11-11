@@ -27,7 +27,7 @@ impl FsOption for UnionFsFuseOption {
         vec![UnionFsFuseOption::Cow, UnionFsFuseOption::HideMetaFiles]
     }
 
-    fn incompatible(&self, other: &MountOption<Self>) -> bool {
+    fn incompatible(&self, _other: &MountOption<Self>) -> bool {
         // TODO : find incompatible mount option and define compatibility matrix
         false
     }

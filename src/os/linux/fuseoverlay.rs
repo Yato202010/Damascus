@@ -2,10 +2,9 @@
 * implementation inspired by libmount crate
 * https://github.com/tailhook/libmount/blob/master/src/overlay.rs
 */
-pub mod option;
+pub mod opt;
 
 use cfg_if::cfg_if;
-use option::FuseOverlayFsOption;
 use std::{
     ffi::CString,
     io::{self, Result},
@@ -16,7 +15,7 @@ use tracing::{debug, error};
 
 use crate::{
     common::fs::Filesystem,
-    os::{AsCString, AsPath},
+    os::{linux::FuseOverlayFsOption, AsCString, AsPath},
     LinuxFilesystem, MountOption, PartitionID, StackableFilesystem,
 };
 
@@ -283,8 +282,8 @@ impl Filesystem for FuseOverlayFs {
     }
 
     #[inline]
-    fn target(&self) -> Result<PathBuf> {
-        Ok(self.target.as_path().to_path_buf())
+    fn target(&self) -> PathBuf {
+        self.target.as_path().to_path_buf()
     }
 
     #[inline]
@@ -313,11 +312,6 @@ impl Filesystem for FuseOverlayFs {
                 .status()
                 .is_ok()
         }
-    }
-
-    fn from_target(target: &dyn AsRef<Path>) -> Result<Self> {
-        // TODO : from_target
-        todo!()
     }
 }
 

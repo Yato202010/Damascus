@@ -12,7 +12,7 @@ resolver = "2"
 
 [dependencies]
 # error
-thiserror = "1.0"
+thiserror = "2.0"
 # static eval
 cfg-if = "1.0"
 

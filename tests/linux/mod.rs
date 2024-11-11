@@ -47,7 +47,9 @@ pub fn register_test() {
     register_tests!(
         overlayfs::mount_overlay_r,
         overlayfs::mount_overlay_rw,
-        overlayfs::mount_overlay_rw_on_lower
+        overlayfs::mount_overlay_rw_on_lower,
+        overlayfs::recover_overlay_ro_handle,
+        overlayfs::recover_overlay_rw_handle
     );
 }
 

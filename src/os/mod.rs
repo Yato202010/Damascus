@@ -73,6 +73,7 @@ impl AsCString for Path {
         };
 
         // TODO : remove unwrap if possible
+        #[allow(clippy::unwrap_used)]
         CString::new(int).unwrap()
     }
 }

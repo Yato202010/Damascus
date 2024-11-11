@@ -33,7 +33,7 @@ impl FsOption for FuseOverlayFsOption {
         vec![]
     }
 
-    fn incompatible(&self, other: &MountOption<Self>) -> bool {
+    fn incompatible(&self, _other: &MountOption<Self>) -> bool {
         // TODO : find incompatible mount option and define compatibility matrix
         false
     }
