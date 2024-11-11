@@ -3,7 +3,7 @@ name = "damascus"
 description = "filesystem utility crate for the Flamberg mod manager stack"
 authors = ["Yato202010"]
 keywords = ["filesystem", "fuse-overlayfs", "overlayfs"]
-version = "0.0.4"
+version = "0.0.6"
 repository = "https://github.com/Yato202010/Damascus"
 license-file = "LICENSE"
 edition = "2021"
@@ -73,3 +73,7 @@ opt-level = "s"
 name = "end2end"
 path = "tests/end2end.rs"
 harness = false
+
+[package.metadata.docs.rs]
+features = ["fuse-overlayfs", "overlayfs"]
+no-default-features = true

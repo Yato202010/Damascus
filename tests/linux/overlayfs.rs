@@ -2,7 +2,8 @@ use crate::skip;
 
 use super::{execute_test, read_only_test, read_test, setup_namespaces, write_test};
 use damascus::{
-    Filesystem, LinuxFilesystem, OverlayFs, RedirectDir, StackableFilesystem, StateRecovery,
+    overlay::opt::RedirectDir, Filesystem, LinuxFilesystem, OverlayFs, StackableFilesystem,
+    StateRecovery,
 };
 use nix::unistd::geteuid;
 use std::fs::create_dir_all;

@@ -72,7 +72,7 @@ pub enum OverlayFsOption {
     /// bits for fsid, because the underlying filesystems rarely use the high inode number bits. In case the underlying inode number does overflow into the high xino
     /// bits, overlay filesystem will fall back to the non xino behavior for that inode.
     ///
-    /// For a detailed description of the effect of this option please refer to https://docs.kernel.org/filesystems/overlayfs.html
+    /// For a detailed description of the effect of this option please refer to <https://docs.kernel.org/filesystems/overlayfs.html>
     Xino(Xino),
     /// Use the "user.overlay." xattr namespace instead of "trusted.overlay.". This is useful for unprivileged mounting of overlayfs.
     UserXattr,

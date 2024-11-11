@@ -66,5 +66,6 @@ pub trait CaseInsensitive: Filesystem {}
 /// ex: /etc/mtab on Linux, etc...
 #[allow(dead_code)]
 pub trait StateRecovery: Filesystem {
+    /// Recover filesystem handle from system information
     fn recover<P: AsRef<Path>>(path: P) -> Result<Self>;
 }

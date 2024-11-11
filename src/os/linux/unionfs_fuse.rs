@@ -16,7 +16,7 @@ use tracing::{debug, error};
 
 use crate::{
     common::fs::Filesystem,
-    os::{linux::UnionFsFuseOption, AsCString, AsPath},
+    os::{linux::unionfs_fuse::opt::UnionFsFuseOption, AsCString, AsPath},
     LinuxFilesystem, MountOption, PartitionID, StackableFilesystem,
 };
 

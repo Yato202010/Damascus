@@ -20,8 +20,8 @@ use tracing::{debug, error};
 use crate::{
     common::fs::{Filesystem, StateRecovery},
     os::{
+        linux::overlay::opt::OverlayFsOption,
         linux::recover_state::{restore_fsdata, FsData},
-        linux::OverlayFsOption,
         AsCString, AsPath, LinuxFilesystem, MountOption,
     },
     PartitionID, StackableFilesystem,

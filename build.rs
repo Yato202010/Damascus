@@ -1,5 +1,3 @@
-use fs_extra::dir::CopyOptions;
-
 fn main() {
     println!("cargo:rerun-if-changed=vendor");
 
@@ -24,7 +22,9 @@ fn main() {
             fs_extra::dir::copy(
                 &d,
                 &srcdir,
-                &CopyOptions::new().overwrite(true).content_only(true),
+                &fs_extra::dir::CopyOptions::new()
+                    .overwrite(true)
+                    .content_only(true),
             )
             .unwrap();
             autotools::Config::new(srcdir)

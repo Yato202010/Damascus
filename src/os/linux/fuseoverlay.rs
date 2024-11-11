@@ -15,7 +15,7 @@ use tracing::{debug, error};
 
 use crate::{
     common::fs::Filesystem,
-    os::{linux::FuseOverlayFsOption, AsCString, AsPath},
+    os::{linux::fuseoverlay::opt::FuseOverlayFsOption, AsCString, AsPath},
     LinuxFilesystem, MountOption, PartitionID, StackableFilesystem,
 };
 

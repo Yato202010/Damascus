@@ -1,15 +1,15 @@
 #[cfg(feature = "unionfs-fuse")]
-mod unionfs_fuse;
+pub mod unionfs_fuse;
 #[cfg(feature = "unionfs-fuse")]
-pub use unionfs_fuse::{opt::*, UnionFsFuse};
+pub use unionfs_fuse::UnionFsFuse;
 #[cfg(feature = "fuse-overlayfs")]
-mod fuseoverlay;
+pub mod fuseoverlay;
 #[cfg(feature = "fuse-overlayfs")]
-pub use fuseoverlay::{opt::*, FuseOverlayFs};
+pub use fuseoverlay::FuseOverlayFs;
 #[cfg(feature = "overlayfs")]
-mod overlay;
+pub mod overlay;
 #[cfg(feature = "overlayfs")]
-pub use overlay::{opt::*, OverlayFs};
+pub use overlay::OverlayFs;
 
 pub use option::{FsOption, LinuxFilesystem, MountOption};
 
@@ -35,6 +35,7 @@ mod recover_state {
         }
     }
 
+    /// Retrieve filesystem data from system information
     pub fn restore_fsdata<P: AsRef<Path>, O: FsOption>(path: P) -> Result<Option<FsData<O>>> {
         let fd = unsafe {
             let mtab = CStr::from_bytes_with_nul_unchecked(b"/etc/mtab\0");
@@ -76,15 +77,21 @@ mod option {
     where
         O: FsOption,
     {
+        /// Set option
+        /// will send error if another incompatible option is present
         fn set_option(&mut self, option: impl Into<MountOption<O>>) -> Result<()>;
 
+        /// Remove an option
         fn remove_option(&mut self, option: impl Into<MountOption<O>>) -> Result<()>;
 
+        /// List currently active option
         fn options(&self) -> &[MountOption<O>];
     }
 
     pub trait FsOption: Sized + Clone + Display + FromStr {
+        /// Get defaults mount option for this filesystem
         fn defaults() -> Vec<Self>;
+        /// Check if mount option is incompatible
         fn incompatible(&self, other: &MountOption<Self>) -> bool;
     }
 
@@ -98,6 +105,7 @@ mod option {
     }
 
     impl<T: FsOption> MountOption<T> {
+        /// Get defaults mount option for this filesystem
         pub fn defaults() -> Vec<Self> {
             let mut v: Vec<MountOption<T>> = vec![];
             let mut r = T::defaults();
@@ -105,6 +113,7 @@ mod option {
             v
         }
 
+        /// Check if mount option is incompatible
         pub fn incompatible(&self, other: &MountOption<T>) -> bool {
             match self {
                 MountOption::FsSpecific(o) => o.incompatible(other),
