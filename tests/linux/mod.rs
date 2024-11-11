@@ -126,7 +126,7 @@ fn setup_namespaces() -> Result<(), Errno> {
             .open("/proc/self/uid_map")
             .and_then(|mut f| f.write(format!("1000 {} 1\n", uid).as_bytes()))
         {
-            return err = Some(Errno::from_raw(e.raw_os_error().unwrap_or(-1)));
+            err = Some(Errno::from_raw(e.raw_os_error().unwrap_or(-1)))
         }
     });
     if let Some(e) = err {

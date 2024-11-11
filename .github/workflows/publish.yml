@@ -1,0 +1,50 @@
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+
+env:
+  CARGO_TERM_COLOR: always
+
+name: Publish
+
+jobs:
+  tests:
+    uses: ./.github/workflows/tests.yml
+  crates_io_publish:
+    name: Publish (crates.io)
+    needs:
+      - tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: cargo-release Cache
+        id: cargo_release_cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/cargo-release
+          key: ${{ runner.os }}-cargo-release
+
+      - run: cargo install cargo-release
+        if: steps.cargo_release_cache.outputs.cache-hit != 'true'
+
+      - name: cargo login
+        run: cargo login ${{ secrets.CRATES_IO_API_TOKEN }}
+
+      # NOTE :
+      # allow-branch HEAD is because GitHub actions switches
+      # to the tag while building, which is a detached head.
+      # We *could* pass through `--no-verify` so `cargo` doesn't build the crate before publishing,
+      # which is reasonable, since this job only runs after the Linux, Windows, and WASM builds
+      # have passed.
+      - name: "cargo release publish"
+        run: |-
+          cargo release \
+            publish \
+            --allow-branch HEAD \
+            --no-confirm \
+            --no-verify \
+            --execute

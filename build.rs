@@ -1,8 +1,7 @@
+use fs_extra::dir::CopyOptions;
+
 fn main() {
     println!("cargo:rerun-if-changed=vendor");
-
-    #[cfg(any(feature = "fuse-overlayfs-vendored", feature = "unionfs-fuse-vendored"))]
-    vendored::init_submodule();
 
     #[cfg(all(feature = "fuse-overlayfs-vendored", target_os = "linux"))]
     {
@@ -11,13 +10,24 @@ fn main() {
             panic!("fuse-overlayfs submodule is not present fuse-overlayfs-vendored cannot be used")
         }
         const EXEC: &str = "fuse-overlayfs";
-        let outdir = std::path::Path::new("./target/vendored").join(EXEC);
+        let basedir = std::path::Path::new("./target/vendored");
+        let outdir = basedir.join(EXEC);
         if !outdir.exists() {
             std::fs::create_dir_all(&outdir).unwrap()
         }
         let exec_path = outdir.join("bin").join(EXEC);
         let build = || {
-            autotools::Config::new(&d)
+            let srcdir = outdir.join("src");
+            if !srcdir.exists() {
+                std::fs::create_dir(&srcdir).unwrap();
+            }
+            fs_extra::dir::copy(
+                &d,
+                &srcdir,
+                &CopyOptions::new().overwrite(true).content_only(true),
+            )
+            .unwrap();
+            autotools::Config::new(srcdir)
                 .out_dir(std::fs::canonicalize(&outdir).expect("cannot canonicalize"))
                 .reconf("-fis")
                 .build()
@@ -69,21 +79,6 @@ fn main() {
 #[cfg(any(feature = "fuse-overlayfs-vendored", feature = "unionfs-fuse-vendored"))]
 mod vendored {
     #[inline]
-    pub fn init_submodule() {
-        let repo = git::Repository::open(".").unwrap();
-        let submodules = repo.submodules().unwrap();
-        for mut submodule in submodules {
-            let entries: Vec<std::fs::DirEntry> = std::fs::read_dir(submodule.path())
-                .unwrap()
-                .map(|x| x.unwrap())
-                .collect();
-            if entries.is_empty() {
-                submodule.update(true, None).unwrap();
-            }
-        }
-    }
-
-    #[inline]
     #[allow(dead_code)]
     #[cfg(feature = "build-cache")]
     pub fn need_rebuild<P: AsRef<std::path::Path>, Q: AsRef<std::path::Path>>(
@@ -91,12 +86,10 @@ mod vendored {
         out: Q,
         exception: Vec<String>,
     ) -> bool {
-        use git::{Repository, StatusOptions};
         use serde::{Deserialize, Serialize};
 
         #[derive(Serialize, Deserialize)]
         struct Cache {
-            commit: String,
             new_or_edited: Vec<(String, [u8; 16])>,
         }
 
@@ -106,48 +99,43 @@ mod vendored {
             .map(std::io::BufReader::new)
             .and_then(|x| serde_json::from_reader(x).ok());
 
-        if let Ok(repo) = Repository::open(&src) {
-            let latest_commit_hash = repo
-                .head()
-                .expect("No HEAD")
-                .target()
-                .expect("No target")
-                .to_string();
-            let mut hashed = vec![];
+        let mut hashed = vec![];
 
-            for elem in repo
-                .statuses(Some(StatusOptions::new().include_untracked(true)))
-                .unwrap()
-                .iter()
-            {
-                let path_str = elem.path().expect("not a valid utf8").to_string();
-                dbg!(&path_str);
+        fn check_dir(
+            hashed: &mut Vec<(String, [u8; 16])>,
+            src: &std::path::Path,
+            exception: &[String],
+        ) {
+            for entry in std::fs::read_dir(src).unwrap() {
+                let entry = entry.unwrap();
+                let path = entry.path();
+                if entry.file_type().unwrap().is_dir() {
+                    check_dir(hashed, &path, exception);
+                    continue;
+                }
+                let path_str = path.to_string_lossy().to_string();
                 if !exception.contains(&path_str) {
-                    let buf = std::fs::read(src.as_ref().join(&path_str)).unwrap();
+                    let buf = std::fs::read(src.join(&path_str)).unwrap();
                     let hash = md5::compute(&buf).0;
-                    hashed.push((path_str.clone(), hash));
+                    hashed.push((path_str, hash));
                 }
             }
-
-            // Write the latest commit hash to a cache file if it's different from the cached one
-            return if !cache
-                .is_some_and(|x| x.commit == latest_commit_hash && x.new_or_edited == hashed)
-            {
-                println!("Detected changes in vendored dependency. Updating cache.");
-
-                let new_cache = Cache {
-                    commit: latest_commit_hash,
-                    new_or_edited: hashed,
-                };
-                // Update the cache file with the latest commit hash
-                std::fs::write(cache_file, serde_json::to_string(&new_cache).unwrap())
-                    .expect("Unable to write cache file");
-                true
-            } else {
-                println!("No changes detected in vendored dependency.");
-                false
-            };
         }
-        true
+
+        check_dir(&mut hashed, src.as_ref(), &exception);
+
+        if !cache.is_some_and(|x| x.new_or_edited == hashed) {
+            println!("Detected changes in vendored dependency. Updating cache.");
+
+            let new_cache = Cache {
+                new_or_edited: hashed,
+            };
+            std::fs::write(cache_file, serde_json::to_string(&new_cache).unwrap())
+                .expect("Unable to write cache file");
+            true
+        } else {
+            println!("No changes detected in vendored dependency.");
+            false
+        }
     }
 }
