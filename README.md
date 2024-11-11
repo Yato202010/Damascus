@@ -1,8 +1,8 @@
 # Damascus
-![GitHub Issues or Pull Requests](https://img.shields.io/github/issues/Yato202010/Damascus)
-![GitHub License](https://img.shields.io/github/license/Yato202010/Damascus)
-![docs.rs](https://img.shields.io/docsrs/damascus)
-![Crates.io Version](https://img.shields.io/crates/v/damascus)
+[![GitHub Issues or Pull Requests](https://img.shields.io/github/issues/Yato202010/Damascus)](https://github.com/Yato202010/Damascus/issues)
+[![GitHub License](https://img.shields.io/github/license/Yato202010/Damascus)](https://github.com/Yato202010/Damascus/blob/main/LICENSE)
+[![docs.rs](https://img.shields.io/docsrs/damascus)](https://docs.rs/damascus/latest/damascus/)
+[![Crates.io Version](https://img.shields.io/crates/v/damascus)](https://crates.io/crates/damascus)
 
 Damascus is a utility crate focused on providing a simple way to interact
 with filesystem from rust
