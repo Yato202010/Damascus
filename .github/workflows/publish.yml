@@ -10,6 +10,7 @@ name: Publish
 
 jobs:
   tests:
+    name: Tests
     uses: ./.github/workflows/tests.yml
   crates_io_publish:
     name: Publish (crates.io)
