@@ -3,7 +3,8 @@
 * https://github.com/tailhook/libmount/blob/master/src/overlay.rs
 */
 
-pub mod opt;
+mod opt;
+pub use opt::*;
 
 use cfg_if::cfg_if;
 use std::{
@@ -14,10 +15,9 @@ use std::{
 };
 use tracing::{debug, error};
 
+use crate::os::set_option_helper;
 use crate::{
-    common::fs::Filesystem,
-    os::{linux::unionfs_fuse::opt::UnionFsFuseOption, AsCString, AsPath},
-    LinuxFilesystem, MountOption, PartitionID, StackableFilesystem,
+    AsCString, AsPath, Filesystem, LinuxFilesystem, MountOption, PartitionID, StackableFilesystem,
 };
 
 #[derive(Debug)]
@@ -271,25 +271,7 @@ impl LinuxFilesystem<UnionFsFuseOption> for UnionFsFuse {
         &mut self,
         option: impl Into<crate::MountOption<UnionFsFuseOption>>,
     ) -> Result<()> {
-        let option = option.into();
-        for (i, opt) in self.options.clone().iter().enumerate() {
-            // If Option is already set with another value, overwrite it
-            if matches!((opt,&option), (MountOption::FsSpecific(s), MountOption::FsSpecific(o)) if std::mem::discriminant(s) == std::mem::discriminant(o))
-                | matches!((opt,&option), (s,o) if std::mem::discriminant(s) == std::mem::discriminant(o))
-            {
-                self.options[i] = option.clone();
-                return Ok(());
-            }
-            // Check option incompatibility
-            if opt.incompatible(&option) {
-                return Err(io::Error::new(
-                    io::ErrorKind::Unsupported,
-                    "Incompatible mount option combinaison",
-                ));
-            }
-        }
-        self.options.push(option);
-        Ok(())
+        set_option_helper(&mut self.options, option.into())
     }
 
     fn remove_option(

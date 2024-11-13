@@ -11,7 +11,9 @@ pub mod overlay;
 #[cfg(feature = "overlayfs")]
 pub use overlay::OverlayFs;
 
+pub(crate) use option::set_option_helper;
 pub use option::{FsOption, LinuxFilesystem, MountOption};
+pub(crate) use recover_state::{restore_fsdata, FsData};
 
 /// Provide utility to recover filesystem state from the information provided by the system
 #[allow(dead_code)]
@@ -36,7 +38,9 @@ mod recover_state {
     }
 
     /// Retrieve filesystem data from system information
-    pub fn restore_fsdata<P: AsRef<Path>, O: FsOption>(path: P) -> Result<Option<FsData<O>>> {
+    pub(crate) fn restore_fsdata<P: AsRef<Path>, O: FsOption>(
+        path: P,
+    ) -> Result<Option<FsData<O>>> {
         let fd = unsafe {
             let mtab = CStr::from_bytes_with_nul_unchecked(b"/etc/mtab\0");
             setmntent(mtab.as_ptr(), "r".as_ptr() as *const i8)
@@ -86,6 +90,37 @@ mod option {
 
         /// List currently active option
         fn options(&self) -> &[MountOption<O>];
+    }
+
+    pub(crate) fn set_option_helper<T, O>(
+        options: &mut Vec<MountOption<T>>,
+        option: O,
+    ) -> Result<()>
+    where
+        T: FsOption + PartialEq,
+        O: Into<MountOption<T>>,
+    {
+        let option = option.into();
+        let mut idx = None;
+        for (i, opt) in options.iter().enumerate() {
+            if opt == &option {
+                return Ok(());
+            } else if matches!((opt,&option), (MountOption::FsSpecific(s), MountOption::FsSpecific(o)) if std::mem::discriminant(s) == std::mem::discriminant(o))
+            {
+                idx = Some(i);
+            } else if opt.incompatible(&option) {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::Unsupported,
+                    "Incompatible mount option combination",
+                ));
+            }
+        }
+        if let Some(idx) = idx {
+            options[idx] = option;
+        } else {
+            options.push(option);
+        }
+        Ok(())
     }
 
     pub trait FsOption: Sized + Clone + Display + FromStr {

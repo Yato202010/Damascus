@@ -109,9 +109,8 @@ pub enum OverlayFsOption {
 impl FsOption for OverlayFsOption {
     fn defaults() -> Vec<Self> {
         vec![
-            OverlayFsOption::RedirectDir(RedirectDir::On),
             OverlayFsOption::Index(true),
-            OverlayFsOption::Xino(Xino::On),
+            OverlayFsOption::Xino(Xino::Auto),
         ]
     }
 

@@ -4,7 +4,8 @@
 *
 */
 
-pub mod opt;
+mod opt;
+pub use opt::*;
 
 use nix::{
     mount::{mount, umount2, MntFlags, MsFlags},
@@ -12,19 +13,14 @@ use nix::{
 };
 use std::{
     ffi::{CStr, CString},
-    io::{self, Error, Result},
+    io::{Error, ErrorKind, Result},
     path::{Path, PathBuf},
 };
 use tracing::{debug, error};
 
 use crate::{
-    common::fs::{Filesystem, StateRecovery},
-    os::{
-        linux::overlay::opt::OverlayFsOption,
-        linux::recover_state::{restore_fsdata, FsData},
-        AsCString, AsPath, LinuxFilesystem, MountOption,
-    },
-    PartitionID, StackableFilesystem,
+    restore_fsdata, set_option_helper, AsCString, AsPath, Filesystem, FsData, LinuxFilesystem,
+    MountOption, PartitionID, StackableFilesystem, StateRecovery,
 };
 
 #[derive(Debug)]
@@ -76,8 +72,8 @@ impl OverlayFs {
     {
         let lower: Vec<PathBuf> = lower.map(|x| x.as_ref().to_path_buf()).collect();
         if lower.len() < 2 {
-            return Err(io::Error::new(
-                io::ErrorKind::Other,
+            return Err(Error::new(
+                ErrorKind::Other,
                 "overlay FileSystem need a least 2 lower directory to work",
             ));
         }
@@ -103,8 +99,8 @@ impl OverlayFs {
         D: AsRef<Path>,
     {
         if PartitionID::try_from(upper.as_ref())? != PartitionID::try_from(work.as_ref())? {
-            return Err(io::Error::new(
-                io::ErrorKind::Other,
+            return Err(Error::new(
+                ErrorKind::Other,
                 "overlay FileSystem need the upper dir and the work dir to be on the same FileSystem",
             ));
         }
@@ -130,15 +126,12 @@ impl OverlayFs {
             != PartitionID::try_from(
                 self.upper
                     .as_ref()
-                    .ok_or(io::Error::new(
-                        io::ErrorKind::NotFound,
-                        "upper directory not set",
-                    ))?
+                    .ok_or(Error::new(ErrorKind::NotFound, "upper directory not set"))?
                     .as_path(),
             )?
         {
-            return Err(io::Error::new(
-                io::ErrorKind::Other,
+            return Err(Error::new(
+                ErrorKind::Other,
                 "overlay FileSystem need the upper dir and the work dir to be on the same FileSystem",
             ));
         }
@@ -154,7 +147,6 @@ impl Filesystem for OverlayFs {
             debug!("Damascus: partition already mounted");
             return Ok(self.target.as_path().to_path_buf());
         }
-        // let mut flags = MsFlags::MS_NOATIME.union(MsFlags::MS_NODIRATIME);
         let mut flags = MsFlags::empty();
         let mut options = String::new();
         options.push_str("lowerdir=");
@@ -186,7 +178,10 @@ impl Filesystem for OverlayFs {
             Some(unsafe { CStr::from_bytes_with_nul(b"overlay\0").unwrap_unchecked() }),
             flags,
             Some(unsafe { CString::from_vec_with_nul_unchecked(args).as_bytes() }),
-        )?;
+        )
+        .inspect_err(|_x| {
+            dbg!(&self);
+        })?;
         self.id = Some(PartitionID::try_from(self.target.as_path())?);
         Ok(self.target.as_path().to_path_buf())
     }
@@ -223,8 +218,8 @@ impl Filesystem for OverlayFs {
     #[inline]
     fn set_target(&mut self, target: &dyn AsRef<Path>) -> Result<()> {
         if self.id.is_some() {
-            return Err(io::Error::new(
-                io::ErrorKind::Other,
+            return Err(Error::new(
+                ErrorKind::Other,
                 "mount point cannot be change when the FileSystem is mounted",
             ));
         }
@@ -243,25 +238,7 @@ impl Filesystem for OverlayFs {
 
 impl LinuxFilesystem<OverlayFsOption> for OverlayFs {
     fn set_option(&mut self, option: impl Into<MountOption<OverlayFsOption>>) -> Result<()> {
-        let option = option.into();
-        for (i, opt) in self.options.clone().iter().enumerate() {
-            // If Option is already set with another value, overwrite it
-            if matches!((opt,&option), (MountOption::FsSpecific(s), MountOption::FsSpecific(o)) if std::mem::discriminant(s) == std::mem::discriminant(o))
-                | matches!((opt,&option), (s,o) if std::mem::discriminant(s) == std::mem::discriminant(o))
-            {
-                self.options[i] = option.clone();
-                return Ok(());
-            }
-            // Check option incompatibility
-            if opt.incompatible(&option) {
-                return Err(io::Error::new(
-                    io::ErrorKind::Unsupported,
-                    "Incompatible mount option combinaison",
-                ));
-            }
-        }
-        self.options.push(option);
-        Ok(())
+        set_option_helper(&mut self.options, option)
     }
 
     fn remove_option(&mut self, option: impl Into<MountOption<OverlayFsOption>>) -> Result<()> {
@@ -287,8 +264,8 @@ impl StackableFilesystem for OverlayFs {
     #[inline]
     fn set_lower(&mut self, lower: Vec<PathBuf>) -> Result<()> {
         if self.id.is_some() {
-            return Err(io::Error::new(
-                io::ErrorKind::Other,
+            return Err(Error::new(
+                ErrorKind::Other,
                 "upper layer cannot be change when the FileSystem is mounted",
             ));
         }
@@ -307,20 +284,17 @@ impl StackableFilesystem for OverlayFs {
             != PartitionID::try_from(
                 self.work
                     .as_ref()
-                    .ok_or(io::Error::new(
-                        io::ErrorKind::NotFound,
-                        "work directory not set",
-                    ))?
+                    .ok_or(Error::new(ErrorKind::NotFound, "work directory not set"))?
                     .as_path(),
             )?
         {
-            return Err(io::Error::new(
-                io::ErrorKind::Other,
+            return Err(Error::new(
+                ErrorKind::Other,
                 "overlay FileSystem need the upper dir and the work dir to be on the same FileSystem",
             ));
         } else if self.id.is_some() {
-            return Err(io::Error::new(
-                io::ErrorKind::Other,
+            return Err(Error::new(
+                ErrorKind::Other,
                 "upper layer cannot be change when the FileSystem is mounted",
             ));
         }
@@ -333,7 +307,7 @@ impl StateRecovery for OverlayFs {
     fn recover<P: AsRef<Path>>(path: P) -> Result<Self> {
         let path = path.as_ref();
         let data: FsData<OverlayFsOption> = restore_fsdata(path)?.ok_or(Error::new(
-            io::ErrorKind::NotFound,
+            ErrorKind::NotFound,
             "OverlayFs not found at mount point : ".to_string() + &path.to_string_lossy(),
         ))?;
         let mut lower = vec![];

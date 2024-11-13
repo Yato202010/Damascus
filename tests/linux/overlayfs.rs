@@ -1,17 +1,14 @@
 use crate::skip;
 
 use super::{execute_test, read_only_test, read_test, setup_namespaces, write_test};
-use damascus::{
-    overlay::opt::RedirectDir, Filesystem, LinuxFilesystem, OverlayFs, StackableFilesystem,
-    StateRecovery,
-};
+use damascus::{Filesystem, OverlayFs, StackableFilesystem, StateRecovery};
 use nix::unistd::geteuid;
 use std::fs::create_dir_all;
 use temp_testdir::TempDir;
 
 pub fn mount_overlay_r() {
     if !OverlayFs::is_available() {
-        skip!("OverlayFs is not availible");
+        skip!("OverlayFs is not available");
         return;
     }
     if !geteuid().is_root() {
@@ -29,8 +26,6 @@ pub fn mount_overlay_r() {
     create_dir_all(&lower2).unwrap();
     create_dir_all(&target).unwrap();
     let mut o = OverlayFs::readonly([&lower1, &lower2].iter(), &target).unwrap();
-    // WARN : this require xattr which is not available on tmpfs
-    o.set_option(RedirectDir::Off).unwrap();
     o.mount().unwrap();
 
     read_only_test(&test);
@@ -38,7 +33,7 @@ pub fn mount_overlay_r() {
 
 pub fn mount_overlay_rw() {
     if !OverlayFs::is_available() {
-        skip!("OverlayFs is not availible");
+        skip!("OverlayFs is not available");
         return;
     }
     if !geteuid().is_root() {
@@ -58,8 +53,6 @@ pub fn mount_overlay_rw() {
     create_dir_all(&upper).unwrap();
     create_dir_all(&work).unwrap();
     let mut o = OverlayFs::writable([lower1, lower2].iter(), &upper, &work, &target).unwrap();
-    // WARN : this require xattr which is not available on tmpfs
-    o.set_option(RedirectDir::Off).unwrap();
     o.mount().unwrap();
 
     write_test(&test);
@@ -71,7 +64,7 @@ pub fn mount_overlay_rw() {
 
 pub fn mount_overlay_rw_on_lower() {
     if !OverlayFs::is_available() {
-        skip!("OverlayFs is not availible");
+        skip!("OverlayFs is not available");
         return;
     }
     if !geteuid().is_root() {
@@ -91,8 +84,6 @@ pub fn mount_overlay_rw_on_lower() {
     create_dir_all(&upper).unwrap();
     create_dir_all(&work).unwrap();
     let mut o = OverlayFs::writable([lower1, lower2].iter(), upper, work, target).unwrap();
-    // WARN : this require xattr which is not available on tmpfs
-    o.set_option(RedirectDir::Off).unwrap();
     o.mount().unwrap();
 
     write_test(&test);
@@ -104,7 +95,7 @@ pub fn mount_overlay_rw_on_lower() {
 
 pub fn recover_overlay_ro_handle() {
     if !OverlayFs::is_available() {
-        skip!("OverlayFs is not availible");
+        skip!("OverlayFs is not available");
         return;
     }
     if !geteuid().is_root() {
@@ -121,12 +112,10 @@ pub fn recover_overlay_ro_handle() {
     create_dir_all(&lower2).unwrap();
     create_dir_all(&target).unwrap();
     let mut o = OverlayFs::readonly([&lower1, &lower2].iter(), &target).unwrap();
-    // WARN : this require xattr which is not available on tmpfs
-    o.set_option(RedirectDir::Off).unwrap();
     o.mount().unwrap();
 
     let reco = OverlayFs::recover(target).unwrap();
-    // NOTE : retrieved mount option may not match once recover but behavior should be the same
+    // NOTE: retrieved mount options may not match once recover but behavior should be the same
     assert_eq!(reco.lower(), o.lower());
     assert_eq!(reco.upper(), o.upper());
     assert_eq!(reco.work(), o.work());
@@ -135,7 +124,7 @@ pub fn recover_overlay_ro_handle() {
 
 pub fn recover_overlay_rw_handle() {
     if !OverlayFs::is_available() {
-        skip!("OverlayFs is not availible");
+        skip!("OverlayFs is not available");
         return;
     }
     if !geteuid().is_root() {
@@ -154,12 +143,10 @@ pub fn recover_overlay_rw_handle() {
     create_dir_all(&upper).unwrap();
     create_dir_all(&work).unwrap();
     let mut o = OverlayFs::writable([lower1, lower2].iter(), upper, work, &target).unwrap();
-    // WARN : this require xattr which is not available on tmpfs
-    o.set_option(RedirectDir::Off).unwrap();
     o.mount().unwrap();
 
     let reco = OverlayFs::recover(target).unwrap();
-    // NOTE : retrieved mount option may not match once recover but behavior should be the same
+    // NOTE: retrieved mount options may not match once recover but behavior should be the same
     assert_eq!(reco.lower(), o.lower());
     assert_eq!(reco.upper(), o.upper());
     assert_eq!(reco.work(), o.work());
