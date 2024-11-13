@@ -22,7 +22,7 @@ pub trait Filesystem: Sized {
 
     /// Retrieve the partition Identifier
     /// "dev id" on UNIX and "volume serial number" on Windows
-    /// if the partition is not mounted, it will return None
+    /// if the partition isn't mounted, it'll return None
     fn id(&self) -> Option<&PartitionID>;
 
     /// Retrieve the mount point as PathBuf
@@ -42,7 +42,7 @@ pub trait Filesystem: Sized {
     }
 }
 
-/// Common trait for all stackable/union/overlay filesystem handle
+/// Common trait for all stackable/union/overlay filesystem handles
 #[allow(dead_code)]
 pub trait StackableFilesystem: Filesystem {
     /// Retrieve a list of lower layer
@@ -63,9 +63,9 @@ pub trait StackableFilesystem: Filesystem {
 pub trait CaseInsensitive: Filesystem {}
 
 /// Common trait for all filesystem handles that can be recovered by using system information
-/// ex: /etc/mtab on Linux, etc...
+/// ex: /etc/mtab on Linux, etc.
 #[allow(dead_code)]
 pub trait StateRecovery: Filesystem {
-    /// Recover filesystem handle from system information
+    /// Recover a filesystem handle from system information
     fn recover<P: AsRef<Path>>(path: P) -> Result<Self>;
 }

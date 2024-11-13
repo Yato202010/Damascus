@@ -21,7 +21,7 @@ pub enum FuseOverlayFsOption {
     /// Every file and directory is owned by the specified gid.
     /// It has higher precedence over squash_to_root.
     SquashToGid(usize),
-    /// Set st_nlink to the static value 1 for all directories
+    /// Set st_nlink to static value 1 for all directories
     StaticNLink,
     /// Disable ACL support in the FUSE file system
     NoAcl,

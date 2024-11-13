@@ -18,7 +18,7 @@ pub enum UnionFsFuseOption {
     RelaxedPermission,
     /// Do not count blocks of ro-branches
     StatfsOmitRo,
-    /// Enable direct-io flag for fuse subsystem
+    /// Enable direct-io flag for the fuse subsystem
     DirectIo,
 }
 

@@ -46,37 +46,60 @@ pub enum OverlayFsOption {
     /// ### On
     /// Redirects are enabled.
     /// ### Follow
-    /// Redirects are not created, but followed.
+    /// Redirects aren't created, but followed.
     /// ### NoFollow
-    /// Redirects are not created and not followed.
+    /// Redirects aren't created and not followed.
     /// ### Off
-    /// If “redirect_always_follow” is enabled in the kernel/module config, this “off” translates to “follow”, otherwise it translates to “nofollow”.
+    /// If “redirect_always_follow”
+    /// is enabled in the kernel/module config, this “off” translates to “follow”,
+    /// otherwise it translates to “nofollow”.
     RedirectDir(RedirectDir),
-    /// When the “metacopy” feature is enabled, overlayfs will only copy up metadata (as opposed to whole file)
+    /// When the “metacopy” feature is enabled, overlayfs will only copy up metadata
+    /// (as opposed to a whole file)
     Metacopy(bool),
     /// ### On  
-    /// Whenever a metacopy files specifies an expected digest, the corresponding data file must match the specified digest. When generating a metacopy file the verity digest will be set in it based on the source file (if it has one).
+    /// Whenever metacopy files specify an expected digest,
+    /// the corresponding data file must match the specified digest.
+    /// When generating a metacopy file, the verity digest will be set in it based on the source file
+    /// (if it has one).
     /// ### Require
-    /// Same as “on”, but additionally all metacopy files must specify a digest (or EIO is returned on open). This means metadata copy up will only be used if the data file has fs-verity enabled, otherwise a full copy-up is used.
+    /// Same as “on”, but additionally, all metacopy files must specify a digest
+    /// (or EIO is returned on open).
+    /// This means metadata copy up will only be used if the data file has fs-verity enabled,
+    /// otherwise a full copy-up is used.
     /// ###• Off
-    /// The metacopy digest is never generated or used. This is the default if verity option is not specified.
+    /// The metacopy digest is never generated or used.
+    /// This is the default if verity option isn't specified.
     FsVerity(FsVerity),
-    /// Inode index. If this feature is disabled and a file with multiple hard links is copied up, then this will "break" the link. Changes will not be propagated to other names referring to the same inode.
+    /// Inode index.
+    /// If this feature is turned off and a file with multiple hard links is copied up,
+    /// then this will "break" the link.
+    /// Changes won't be propagated to other names referring to the same inode.
     Index(bool),
-    /// Can be used to replace UUID of the underlying filesystem in file handles with null, and effectively disable UUID checks. This can be useful in case the
-    /// underlying disk is copied and the UUID of this copy is changed. This is only applicable if
+    /// Can be used to replace UUID of the underlying filesystem in file handles with null,
+    /// and effectively turn off UUID checks.
+    /// This can be useful in case the
+    /// underlying disk is copied and the UUID of this copy is changed.
+    /// This is only applicable if
     /// all lower/upper/work directories are on the same filesystems,
-    /// otherwise it will fallback to normal behaviour.
+    /// otherwise it'll fall back to normal behaviour.
     Uuid(bool),
-    /// The "xino" feature composes a unique object identifier from the real object st_ino and an underlying fsid index. The "xino" feature uses the high inode number
-    /// bits for fsid, because the underlying filesystems rarely use the high inode number bits. In case the underlying inode number does overflow into the high xino
+    /// The "xino"
+    /// feature composes a unique object identifier from the real object st_ino and an underlying fsid index.
+    /// The "xino" feature uses the high inode number
+    /// bits for fsid, because the underlying filesystems rarely use the high inode number bits.
+    /// In case the underlying inode number does overflow into the high xino
     /// bits, overlay filesystem will fall back to the non xino behavior for that inode.
     ///
-    /// For a detailed description of the effect of this option please refer to <https://docs.kernel.org/filesystems/overlayfs.html>
+    /// For a detailed effect description of this option,
+    /// please refer to <https://docs.kernel.org/filesystems/overlayfs.html>
     Xino(Xino),
-    /// Use the "user.overlay." xattr namespace instead of "trusted.overlay.". This is useful for unprivileged mounting of overlayfs.
+    /// Use the "user.overlay."
+    /// Xattr namespace instead of "trusted.overlay."
+    /// This is useful for unprivileged mounting of overlayfs.
     UserXattr,
-    /// Volatile mounts are not guaranteed to survive a crash. It is strongly recommended that volatile mounts are only used if data written to the overlay can be
+    /// Volatile mounts aren't guaranteed to survive a crash.
+    /// It is strongly recommended that volatile mounts are only used if data written to the overlay can be
     /// recreated without significant effort.
     Volatile,
     // TODO : check doc and incompatibility

@@ -89,9 +89,9 @@ mod option {
     }
 
     pub trait FsOption: Sized + Clone + Display + FromStr {
-        /// Get defaults mount option for this filesystem
+        /// Get defaults mount options for this filesystem
         fn defaults() -> Vec<Self>;
-        /// Check if mount option is incompatible
+        /// Check if a mount option is incompatible
         fn incompatible(&self, other: &MountOption<Self>) -> bool;
     }
 
@@ -105,7 +105,7 @@ mod option {
     }
 
     impl<T: FsOption> MountOption<T> {
-        /// Get defaults mount option for this filesystem
+        /// Get defaults mount options for this filesystem
         pub fn defaults() -> Vec<Self> {
             let mut v: Vec<MountOption<T>> = vec![];
             let mut r = T::defaults();
@@ -113,7 +113,7 @@ mod option {
             v
         }
 
-        /// Check if mount option is incompatible
+        /// Check if a mount option is incompatible
         pub fn incompatible(&self, other: &MountOption<T>) -> bool {
             match self {
                 MountOption::FsSpecific(o) => o.incompatible(other),
