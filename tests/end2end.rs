@@ -84,7 +84,10 @@ macro_rules! skip {
     };
     ($string:expr) => {
         use colored::*;
-        unsafe { $crate::TEST_RUNNER.skip_filtered() };
+        #[allow(static_mut_refs)]
+        unsafe {
+            $crate::TEST_RUNNER.skip_filtered()
+        };
         print!("{} ", ("filtered: ".to_string() + $string).yellow());
     };
 }
@@ -93,11 +96,13 @@ macro_rules! skip {
 macro_rules! register_tests {
     ( $($fn_path:path$(,)?)* ) => {{
          $(
+            #[allow(static_mut_refs)]
             unsafe { $crate::TEST_RUNNER.register_test(stringify!($fn_path),$fn_path) }
          )*
     }};
 }
 
+#[allow(static_mut_refs)]
 fn main() {
     register_test();
     let to_pass = unsafe { TEST_RUNNER.len() };
