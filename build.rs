@@ -1,3 +1,5 @@
+use std::fs::remove_dir_all;
+
 fn main() {
     println!("cargo:rerun-if-changed=vendor");
 
@@ -19,12 +21,15 @@ fn main() {
             if !srcdir.exists() {
                 std::fs::create_dir(&srcdir).unwrap();
             }
+            remove_dir_all(&srcdir).unwrap();
             fs_extra::dir::copy(
                 &d,
                 &srcdir,
                 &fs_extra::dir::CopyOptions::new()
                     .overwrite(true)
-                    .content_only(true),
+                    .content_only(true)
+                    .copy_inside(true)
+                    .skip_exist(false),
             )
             .unwrap();
             autotools::Config::new(srcdir)
