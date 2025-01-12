@@ -112,23 +112,27 @@ const EXPECTED_STATUS: i32 = 23;
 static ONCE: Once = std::sync::Once::new();
 
 fn setup_namespaces() -> Result<(), Errno> {
-    let mut err = None;
-    ONCE.call_once(|| {
-        // Hold on to the uid in the parent namespace.
-        let uid = getuid();
+    static mut ST_ERR: Option<Errno> = None;
+    let mut err = unsafe { ST_ERR };
+    if err.is_none() {
+        ONCE.call_once(|| {
+            // Hold on to the uid in the parent namespace.
+            let uid = getuid();
 
-        if let Err(e) = unshare(CloneFlags::CLONE_NEWUSER.union(CloneFlags::CLONE_NEWNS)) {
-            return err = Some(e);
-        };
-        // Map user as uid 1000.
-        if let Err(e) = fs::OpenOptions::new()
-            .write(true)
-            .open("/proc/self/uid_map")
-            .and_then(|mut f| f.write(format!("1000 {} 1\n", uid).as_bytes()))
-        {
-            err = Some(Errno::from_raw(e.raw_os_error().unwrap_or(-1)))
-        }
-    });
+            if let Err(e) = unshare(CloneFlags::CLONE_NEWUSER.union(CloneFlags::CLONE_NEWNS)) {
+                return err = Some(e);
+            };
+            // Map user as uid 1000.
+            if let Err(e) = fs::OpenOptions::new()
+                .write(true)
+                .open("/proc/self/uid_map")
+                .and_then(|mut f| f.write(format!("1000 {} 1\n", uid).as_bytes()))
+            {
+                err = Some(Errno::from_raw(e.raw_os_error().unwrap_or(-1)))
+            }
+        });
+        unsafe { ST_ERR = err };
+    }
     if let Some(e) = err {
         Err(e)
     } else {
