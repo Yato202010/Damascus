@@ -5,7 +5,7 @@ use std::{
 };
 
 /// Common trait for all filesystem handle
-pub trait Filesystem: Sized {
+pub trait Filesystem {
     #[must_use = "Error on filesystem operation should be handled"]
     /// Request a handle to mount the filesystem, returning a PathBuf pointing to the mount point
     fn mount(&mut self) -> Result<PathBuf>;
@@ -32,9 +32,7 @@ pub trait Filesystem: Sized {
     fn set_target(&mut self, target: &dyn AsRef<Path>) -> Result<()>;
 
     /// Get if the filesystem is available
-    fn is_available() -> bool
-    where
-        Self: Sized;
+    fn is_available() -> bool;
 
     /// Check if the partition is mounted
     fn mounted(&self) -> bool {
@@ -65,7 +63,7 @@ pub trait CaseInsensitive: Filesystem {}
 /// Common trait for all filesystem handles that can be recovered by using system information
 /// ex: /etc/mtab on Linux, etc.
 #[allow(dead_code)]
-pub trait StateRecovery: Filesystem {
+pub trait StateRecovery: Filesystem + Sized {
     /// Recover a filesystem handle from system information
     fn recover<P: AsRef<Path>>(path: P) -> Result<Self>;
 }
