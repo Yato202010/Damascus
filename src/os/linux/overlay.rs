@@ -12,7 +12,7 @@ use nix::{
     unistd::getuid,
 };
 use std::{
-    ffi::{CStr, CString},
+    ffi::CString,
     io::{Error, ErrorKind, Result},
     path::{Path, PathBuf},
 };
@@ -173,9 +173,9 @@ impl Filesystem for OverlayFs {
         let mut args = options.as_bytes().to_vec();
         args.push(b'\0');
         mount(
-            Some(unsafe { CStr::from_bytes_with_nul(b"overlay\0").unwrap_unchecked() }),
+            Some(c"overlay"),
             &*self.target,
-            Some(unsafe { CStr::from_bytes_with_nul(b"overlay\0").unwrap_unchecked() }),
+            Some(c"overlay"),
             flags,
             Some(unsafe { CString::from_vec_with_nul_unchecked(args).as_bytes() }),
         )

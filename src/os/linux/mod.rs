@@ -11,8 +11,10 @@ pub mod overlay;
 #[cfg(feature = "overlayfs")]
 pub use overlay::OverlayFs;
 
+#[allow(unused_imports)]
 pub(crate) use option::set_option_helper;
 pub use option::{FsOption, LinuxFilesystem, MountOption};
+#[allow(unused_imports)]
 pub(crate) use recover_state::{restore_fsdata, FsData};
 
 /// Provide utility to recover filesystem state from the information provided by the system
@@ -41,10 +43,7 @@ mod recover_state {
     pub(crate) fn restore_fsdata<P: AsRef<Path>, O: FsOption>(
         path: P,
     ) -> Result<Option<FsData<O>>> {
-        let fd = unsafe {
-            let mtab = CStr::from_bytes_with_nul_unchecked(b"/etc/mtab\0");
-            setmntent(mtab.as_ptr(), "r".as_ptr() as *const i8)
-        };
+        let fd = unsafe { setmntent(c"/etc/mtab".as_ptr(), "r".as_ptr() as *const i8) };
         if fd.is_null() {
             return Err(std::io::Error::new(
                 std::io::ErrorKind::Other,
@@ -92,6 +91,7 @@ mod option {
         fn options(&self) -> &[MountOption<O>];
     }
 
+    #[allow(dead_code)]
     pub(crate) fn set_option_helper<T, O>(
         options: &mut Vec<MountOption<T>>,
         option: O,

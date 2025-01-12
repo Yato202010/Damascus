@@ -1,5 +1,3 @@
-use std::fs::remove_dir_all;
-
 fn main() {
     println!("cargo:rerun-if-changed=vendor");
 
@@ -21,7 +19,7 @@ fn main() {
             if !srcdir.exists() {
                 std::fs::create_dir(&srcdir).unwrap();
             }
-            remove_dir_all(&srcdir).unwrap();
+            std::fs::remove_dir_all(&srcdir).unwrap();
             fs_extra::dir::copy(
                 &d,
                 &srcdir,
@@ -129,7 +127,7 @@ mod vendored {
 
         check_dir(&mut hashed, src.as_ref(), &exception);
 
-        if !cache.is_some_and(|x| x.new_or_edited == hashed) {
+        if cache.is_none_or(|x| x.new_or_edited != hashed) {
             println!("Detected changes in vendored dependency. Updating cache.");
 
             let new_cache = Cache {
