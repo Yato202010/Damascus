@@ -29,7 +29,7 @@ pub trait Filesystem {
     fn target(&self) -> PathBuf;
 
     /// Set Target mount point
-    fn set_target(&mut self, target: &dyn AsRef<Path>) -> Result<()>;
+    fn set_target(&mut self, target: impl AsRef<Path>) -> Result<()>;
 
     /// Get if the filesystem is available
     fn is_available() -> bool;
@@ -47,13 +47,13 @@ pub trait StackableFilesystem: Filesystem {
     fn lower(&self) -> Vec<&Path>;
 
     /// Set lower layer
-    fn set_lower(&mut self, lower: Vec<PathBuf>) -> Result<()>;
+    fn set_lower(&mut self, lower: impl Into<Vec<PathBuf>>) -> Result<()>;
 
     /// Retrieve upper layer if set
     fn upper(&self) -> Option<&Path>;
 
     /// Set upper layer
-    fn set_upper(&mut self, upper: PathBuf) -> Result<()>;
+    fn set_upper(&mut self, upper: impl Into<PathBuf>) -> Result<()>;
 }
 
 /// Common trait for all case-insensitive filesystem handles

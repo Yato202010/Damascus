@@ -5,18 +5,18 @@
 mod opt;
 pub use opt::*;
 
-use cfg_if::cfg_if;
 use std::{
     ffi::CString,
-    io::{self, Result},
+    io::{self, Error, ErrorKind, Result},
     path::{Path, PathBuf},
     process::Command,
+    str::FromStr,
 };
 use tracing::{debug, error};
 
 use crate::{
     set_option_helper, AsCString, AsPath, Filesystem, LinuxFilesystem, MountOption, PartitionID,
-    StackableFilesystem,
+    StackableFilesystem, StateRecovery,
 };
 
 #[derive(Debug)]
@@ -176,70 +176,69 @@ impl Filesystem for FuseOverlayFs {
         }
 
         let args = &[
-            CString::new("")?,
+            CString::new("fuse-overlayfs")?,
             CString::new("-o")?,
             CString::new(options)?,
             self.target.clone(),
         ];
 
-        cfg_if!(
-            if #[cfg(feature = "fuse-overlayfs-vendored")] {
-                use nix::{
-                    sys::{
-                        memfd::{memfd_create, MemFdCreateFlag},
-                        wait::waitpid,
-                    },
-                    unistd::{fexecve, fork, write, ForkResult},
-                };
-                // init embedded fuse overlay version 1.10 or later since [ 1.7, 1.9 ] doesn't support mounting on top
-                // of the base directory
-                let byte = include_bytes!(concat!("../../../",env!("FUSE-OVERLAYFS-BIN")));
-                let mem = memfd_create(
-                    &CString::new("fuse-overlayfs")?,
-                    MemFdCreateFlag::empty(),
-                )?;
-                write(&mem, byte)?;
-                let env: Vec<CString> = vec![];
-                match unsafe { fork() } {
-                    Ok(ForkResult::Parent { child, .. }) => {
-                        waitpid(child, None)?;
-                    }
-                    Ok(ForkResult::Child) => {
-                        use std::os::fd::AsRawFd;
-                        fexecve(mem.as_raw_fd(), args, &env)?;
-                    }
-                    Err(_) => {
-                        return Err(
-                            io::Error::new(
-                                io::ErrorKind::PermissionDenied,
-                                "Failed to mount vfs"
-                            )
-                        )
-                    }
+        #[cfg(feature = "fuse-overlayfs-vendored")]
+        {
+            use nix::{
+                sys::{
+                    memfd::{memfd_create, MemFdCreateFlag},
+                    wait::waitpid,
+                },
+                unistd::{fexecve, fork, write, ForkResult},
+            };
+            // init embedded fuse overlay version 1.10 or later since [ 1.7, 1.9 ] doesn't support mounting on top
+            // of the base directory
+            let byte = include_bytes!(concat!("../../../", env!("FUSE-OVERLAYFS-BIN")));
+            let mem = memfd_create(&CString::new("fuse-overlayfs")?, MemFdCreateFlag::empty())?;
+            write(&mem, byte)?;
+            let env: Vec<CString> = vec![];
+            match unsafe { fork() } {
+                Ok(ForkResult::Parent { child, .. }) => {
+                    waitpid(child, None)?;
                 }
-            } else {
-                let options: Vec<&str> = args.iter().skip(1).map(|x| x.to_str().unwrap()).collect();
-                let output = Command::new("fuse-overlayfs")
-                    .args(options)
-                    .spawn()
-                    .unwrap()
-                    .wait_with_output()
-                    .unwrap();
-                if output.status.code().unwrap() != 0 {
-                    error!(
-                        "Damascus: unable to mount {:?}\n{}",
-                        &self,
-                        String::from_utf8(output.stderr).unwrap()
-                    );
+                Ok(ForkResult::Child) => {
+                    use std::os::fd::AsRawFd;
+                    fexecve(mem.as_raw_fd(), args, &env)?;
+                }
+                Err(_) => {
                     return Err(io::Error::new(
                         io::ErrorKind::PermissionDenied,
                         "Failed to mount vfs",
-                    ));
+                    ))
                 }
             }
-        );
+        }
+        #[cfg(not(feature = "fuse-overlayfs-vendored"))]
+        {
+            let options: Vec<&str> = args.iter().skip(1).map(|x| x.to_str().unwrap()).collect();
+            let output = Command::new("fuse-overlayfs")
+                .args(options)
+                .spawn()
+                .unwrap()
+                .wait_with_output()
+                .unwrap();
+            if !output.status.success() {
+                error!(
+                    "Damascus: unable to mount {:?}\n{}",
+                    &self,
+                    String::from_utf8_lossy(&output.stderr)
+                );
+                return Err(io::Error::new(
+                    io::ErrorKind::PermissionDenied,
+                    "Failed to mount vfs",
+                ));
+            }
+        };
 
-        self.id = Some(PartitionID::try_from(self.target.as_path())?);
+        self.id = Some(
+            PartitionID::try_from(self.target.as_path())
+                .map_err(|_| Error::new(ErrorKind::Other, "unable to get PartitionID"))?,
+        );
         Ok(self.target.as_path().to_path_buf())
     }
 
@@ -251,15 +250,16 @@ impl Filesystem for FuseOverlayFs {
                 .arg(self.target.as_path())
                 .spawn()?;
             let output = child.wait_with_output()?;
-            match output.status.code() {
-                Some(0) => {}
-                Some(_) | None => {
-                    error!("Damascus: unable to unmount {:?}", &self);
-                    return Err(io::Error::new(
-                        io::ErrorKind::PermissionDenied,
-                        "Failed to unmount vfs",
-                    ));
-                }
+            if !output.status.success() {
+                error!(
+                    "Damascus: unable to unmount {:?}\n{}",
+                    &self,
+                    String::from_utf8_lossy(&output.stderr)
+                );
+                return Err(io::Error::new(
+                    io::ErrorKind::PermissionDenied,
+                    "Failed to unmount vfs",
+                ));
             }
             self.id = None;
         }
@@ -287,7 +287,7 @@ impl Filesystem for FuseOverlayFs {
     }
 
     #[inline]
-    fn set_target(&mut self, target: &dyn AsRef<Path>) -> Result<()> {
+    fn set_target(&mut self, target: impl AsRef<Path>) -> Result<()> {
         if self.id.is_some() {
             return Err(io::Error::new(
                 io::ErrorKind::Other,
@@ -341,14 +341,14 @@ impl StackableFilesystem for FuseOverlayFs {
     }
 
     #[inline]
-    fn set_lower(&mut self, lower: Vec<PathBuf>) -> Result<()> {
+    fn set_lower(&mut self, lower: impl Into<Vec<PathBuf>>) -> Result<()> {
         if self.id.is_some() {
             return Err(io::Error::new(
                 io::ErrorKind::Other,
                 "upper layer cannot be change when the FileSystem is mounted",
             ));
         }
-        self.lower = lower;
+        self.lower = lower.into();
         Ok(())
     }
 
@@ -358,7 +358,8 @@ impl StackableFilesystem for FuseOverlayFs {
     }
 
     #[inline]
-    fn set_upper(&mut self, upper: PathBuf) -> Result<()> {
+    fn set_upper(&mut self, upper: impl Into<PathBuf>) -> Result<()> {
+        let upper = upper.into();
         if PartitionID::try_from(upper.as_path())?
             != PartitionID::try_from(
                 self.work
@@ -382,6 +383,84 @@ impl StackableFilesystem for FuseOverlayFs {
         }
         self.upper = Some(upper);
         Ok(())
+    }
+}
+
+impl StateRecovery for FuseOverlayFs {
+    fn recover<P: AsRef<Path>>(path: P) -> Result<Self> {
+        let path = path.as_ref();
+        let mut cmd = Command::new("ps");
+        cmd.args(["--no-headers", "x", "-o", "args=", "-C", "fuse-overlayfs"]);
+        let out = cmd.output()?;
+        if !out.status.success() {
+            error!(
+                "Damascus: unable to recover handle at {:?}\n{}",
+                path,
+                String::from_utf8_lossy(&out.stderr)
+            );
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                "Failed to recover handle",
+            ));
+        }
+        for line in String::from_utf8_lossy(&out.stdout).lines() {
+            if let Some(x) = line.strip_prefix("fuse-overlayfs") {
+                let mut args = x.split(" ");
+                let mut options = vec![];
+                let mut lower = vec![];
+                let mut upper = None;
+                let mut work = None;
+                while let Some(elem) = args.next() {
+                    if elem == " " {
+                        continue;
+                    } else if elem == "-o" {
+                        if let Some(elem) = args.next() {
+                            let mut elem: Vec<MountOption<FuseOverlayFsOption>> = elem
+                                .split(',')
+                                .filter_map(|x| {
+                                    if let Some(x) = x.strip_prefix("lowerdir=") {
+                                        let mut x = x.split(':').map(PathBuf::from).collect();
+                                        lower.append(&mut x);
+                                        None
+                                    } else if let Some(x) = x.strip_prefix("upperdir=") {
+                                        upper = Some(PathBuf::from(x));
+                                        None
+                                    } else if let Some(x) = x.strip_prefix("workdir=") {
+                                        work = Some(PathBuf::from(x));
+                                        None
+                                    } else {
+                                        MountOption::from_str(x).ok()
+                                    }
+                                })
+                                .collect();
+                            options.append(&mut elem);
+                        }
+                    } else if let Some(target) = Some(CString::new(elem)?) {
+                        if target.as_path() == path {
+                            return Ok(Self {
+                                lower,
+                                upper,
+                                work,
+                                target,
+                                options,
+                                id: Some(PartitionID::try_from(path).map_err(|_| {
+                                    Error::new(ErrorKind::Other, "unable to get PartitionID")
+                                })?),
+                                drop: true,
+                            });
+                        }
+                    }
+                }
+            }
+        }
+        error!(
+            "Damascus: unable to recover handle at {:?}\n{}",
+            path, "no filesystem of type fuse-overlayfs is mounted"
+        );
+        Err(io::Error::new(
+            io::ErrorKind::NotFound,
+            "Failed to recover handle",
+        ))
     }
 }
 

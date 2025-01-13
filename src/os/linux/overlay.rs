@@ -182,7 +182,10 @@ impl Filesystem for OverlayFs {
         .inspect_err(|_x| {
             dbg!(&self);
         })?;
-        self.id = Some(PartitionID::try_from(self.target.as_path())?);
+        self.id = Some(
+            PartitionID::try_from(self.target.as_path())
+                .map_err(|_| Error::new(ErrorKind::Other, "unable to get PartitionID"))?,
+        );
         Ok(self.target.as_path().to_path_buf())
     }
 
@@ -216,7 +219,7 @@ impl Filesystem for OverlayFs {
     }
 
     #[inline]
-    fn set_target(&mut self, target: &dyn AsRef<Path>) -> Result<()> {
+    fn set_target(&mut self, target: impl AsRef<Path>) -> Result<()> {
         if self.id.is_some() {
             return Err(Error::new(
                 ErrorKind::Other,
@@ -262,14 +265,14 @@ impl StackableFilesystem for OverlayFs {
     }
 
     #[inline]
-    fn set_lower(&mut self, lower: Vec<PathBuf>) -> Result<()> {
+    fn set_lower(&mut self, lower: impl Into<Vec<PathBuf>>) -> Result<()> {
         if self.id.is_some() {
             return Err(Error::new(
                 ErrorKind::Other,
                 "upper layer cannot be change when the FileSystem is mounted",
             ));
         }
-        self.lower = lower;
+        self.lower = lower.into();
         Ok(())
     }
 
@@ -279,7 +282,8 @@ impl StackableFilesystem for OverlayFs {
     }
 
     #[inline]
-    fn set_upper(&mut self, upper: PathBuf) -> Result<()> {
+    fn set_upper(&mut self, upper: impl Into<PathBuf>) -> Result<()> {
+        let upper = upper.into();
         if PartitionID::try_from(upper.as_path())?
             != PartitionID::try_from(
                 self.work
@@ -351,7 +355,10 @@ impl StateRecovery for OverlayFs {
             work,
             target,
             options,
-            id: Some(PartitionID::try_from(path)?),
+            id: Some(
+                PartitionID::try_from(path)
+                    .map_err(|_| Error::new(ErrorKind::Other, "unable to get PartitionID"))?,
+            ),
             drop: false,
         })
     }

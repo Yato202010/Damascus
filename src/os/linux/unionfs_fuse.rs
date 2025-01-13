@@ -6,10 +6,9 @@
 mod opt;
 pub use opt::*;
 
-use cfg_if::cfg_if;
 use std::{
     ffi::CString,
-    io::{self, Result},
+    io::{self, Error, ErrorKind, Result},
     path::{Path, PathBuf},
     process::Command,
 };
@@ -127,70 +126,69 @@ impl Filesystem for UnionFsFuse {
         }
 
         let args = &[
-            CString::new("")?,
+            CString::new("unionfs")?,
             CString::new("-o")?,
             CString::new(options)?,
             CString::new(layer_args)?,
             self.target.clone(),
         ];
 
-        cfg_if!(
-            if #[cfg(feature = "unionfs-fuse-vendored")] {
-                use nix::{
-                    sys::{
-                        memfd::{memfd_create, MemFdCreateFlag},
-                        wait::waitpid,
-                    },
-                    unistd::{fexecve, fork, write, ForkResult},
-                };
-                // init embedded unionfs fuse since it's not always packaged by distribution
-                let byte = include_bytes!(concat!("../../../",env!("UNIONFS-FUSE-BIN")));
-                let mem = memfd_create(
-                    &CString::new("unionfs")?,
-                    MemFdCreateFlag::empty(),
-                )?;
-                write(&mem, byte)?;
-                let env: Vec<CString> = vec![];
-                match unsafe { fork() } {
-                    Ok(ForkResult::Parent { child, .. }) => {
-                        waitpid(child, None)?;
-                    }
-                    Ok(ForkResult::Child) => {
-                        use std::os::fd::AsRawFd;
-                        fexecve(mem.as_raw_fd(), args, &env)?;
-                    }
-                    Err(_) => {
-                        return Err(
-                            io::Error::new(
-                                io::ErrorKind::PermissionDenied,
-                                "Failed to mount vfs"
-                            )
-                        )
-                    }
+        #[cfg(feature = "unionfs-fuse-vendored")]
+        {
+            use nix::{
+                sys::{
+                    memfd::{memfd_create, MemFdCreateFlag},
+                    wait::waitpid,
+                },
+                unistd::{fexecve, fork, write, ForkResult},
+            };
+            // init embedded unionfs fuse since it's not always packaged by distribution
+            let byte = include_bytes!(concat!("../../../", env!("UNIONFS-FUSE-BIN")));
+            let mem = memfd_create(&CString::new("unionfs")?, MemFdCreateFlag::empty())?;
+            write(&mem, byte)?;
+            let env: Vec<CString> = vec![];
+            match unsafe { fork() } {
+                Ok(ForkResult::Parent { child, .. }) => {
+                    waitpid(child, None)?;
                 }
-            } else {
-                let options: Vec<&str> = args.iter().skip(1).map(|x| x.to_str().unwrap()).collect();
-                let output = Command::new("unionfs")
-                    .args(options)
-                    .spawn()
-                    .unwrap()
-                    .wait_with_output()
-                    .unwrap();
-                if output.status.code().unwrap() != 0 {
-                    error!(
-                        "Damascus: unable to mount {:?}\n{}",
-                        &self,
-                        String::from_utf8(output.stderr).unwrap()
-                    );
+                Ok(ForkResult::Child) => {
+                    use std::os::fd::AsRawFd;
+                    fexecve(mem.as_raw_fd(), args, &env)?;
+                }
+                Err(_) => {
                     return Err(io::Error::new(
                         io::ErrorKind::PermissionDenied,
                         "Failed to mount vfs",
-                    ));
+                    ))
                 }
             }
-        );
+        }
+        #[cfg(not(feature = "unionfs-fuse-vendored"))]
+        {
+            let options: Vec<&str> = args.iter().skip(1).map(|x| x.to_str().unwrap()).collect();
+            let output = Command::new("unionfs")
+                .args(options)
+                .spawn()
+                .unwrap()
+                .wait_with_output()
+                .unwrap();
+            if !output.status.success() {
+                error!(
+                    "Damascus: unable to mount {:?}\n{}",
+                    &self,
+                    String::from_utf8_lossy(&output.stderr)
+                );
+                return Err(io::Error::new(
+                    io::ErrorKind::PermissionDenied,
+                    "Failed to mount vfs",
+                ));
+            }
+        };
 
-        self.id = Some(PartitionID::try_from(self.target.as_path())?);
+        self.id = Some(
+            PartitionID::try_from(self.target.as_path())
+                .map_err(|_| Error::new(ErrorKind::Other, "unable to get PartitionID"))?,
+        );
         Ok(self.target.as_path().to_path_buf())
     }
 
@@ -202,15 +200,16 @@ impl Filesystem for UnionFsFuse {
                 .arg(self.target.as_path())
                 .spawn()?;
             let output = child.wait_with_output()?;
-            match output.status.code() {
-                Some(0) => {}
-                Some(_) | None => {
-                    error!("Damascus: unable to unmount {:?}", &self);
-                    return Err(io::Error::new(
-                        io::ErrorKind::PermissionDenied,
-                        "Failed to unmount vfs",
-                    ));
-                }
+            if !output.status.success() {
+                error!(
+                    "Damascus: unable to unmount {:?}\n{}",
+                    &self,
+                    String::from_utf8_lossy(&output.stderr)
+                );
+                return Err(io::Error::new(
+                    io::ErrorKind::PermissionDenied,
+                    "Failed to unmount vfs",
+                ));
             }
             self.id = None;
         }
@@ -238,7 +237,7 @@ impl Filesystem for UnionFsFuse {
     }
 
     #[inline]
-    fn set_target(&mut self, target: &dyn AsRef<Path>) -> Result<()> {
+    fn set_target(&mut self, target: impl AsRef<Path>) -> Result<()> {
         if self.id.is_some() {
             return Err(io::Error::new(
                 io::ErrorKind::Other,
@@ -298,14 +297,14 @@ impl StackableFilesystem for UnionFsFuse {
     }
 
     #[inline]
-    fn set_lower(&mut self, lower: Vec<PathBuf>) -> Result<()> {
+    fn set_lower(&mut self, lower: impl Into<Vec<PathBuf>>) -> Result<()> {
         if self.id.is_some() {
             return Err(io::Error::new(
                 io::ErrorKind::Other,
                 "upper layer cannot be change when the FileSystem is mounted",
             ));
         }
-        self.lower = lower;
+        self.lower = lower.into();
         Ok(())
     }
 
@@ -315,14 +314,14 @@ impl StackableFilesystem for UnionFsFuse {
     }
 
     #[inline]
-    fn set_upper(&mut self, upper: PathBuf) -> Result<()> {
+    fn set_upper(&mut self, upper: impl Into<PathBuf>) -> Result<()> {
         if self.id.is_some() {
             return Err(io::Error::new(
                 io::ErrorKind::Other,
                 "upper layer cannot be change when the FileSystem is mounted",
             ));
         }
-        self.upper = Some(upper);
+        self.upper = Some(upper.into());
         Ok(())
     }
 }

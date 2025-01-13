@@ -41,7 +41,9 @@ pub fn register_test() {
     register_tests!(
         fuse_overlayfs::mount_fuse_overlay_r,
         fuse_overlayfs::mount_fuse_overlay_rw,
-        fuse_overlayfs::mount_fuse_overlay_rw_on_lower
+        fuse_overlayfs::mount_fuse_overlay_rw_on_lower,
+        fuse_overlayfs::recover_fuse_overlay_ro_handle,
+        fuse_overlayfs::recover_fuse_overlay_rw_handle
     );
     #[cfg(feature = "overlayfs")]
     register_tests!(

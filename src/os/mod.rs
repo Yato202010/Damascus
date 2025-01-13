@@ -3,38 +3,44 @@ use std::{
     path::{Path, PathBuf},
 };
 
-cfg_if::cfg_if! {
-    if #[cfg(target_os = "linux")] {
-        mod linux;
-        pub(crate) use std::os::unix::ffi::OsStrExt;
-        #[allow(unused_imports)]
-        pub use linux::*;
-    } else if #[cfg(target_os = "windows")] {
-        mod windows;
-        #[allow(unused_imports)]
-        pub use windows::*;
-        pub(crate) trait OsStrExt {
-            fn from_bytes(b: &[u8]) -> &Self;
-            fn as_bytes(&self) -> &[u8];
-        }
+/* Linux */
+#[cfg(target_os = "linux")]
+mod linux;
+#[cfg(target_os = "linux")]
+#[allow(unused_imports)]
+pub use linux::*;
+#[cfg(target_family = "unix")]
+pub(crate) use std::os::unix::ffi::OsStrExt;
 
-        impl OsStrExt for OsStr {
-            #[allow(clippy::transmute_ptr_to_ptr)]
-            fn from_bytes(b: &[u8]) -> &Self {
-                use std::mem;
-                unsafe { mem::transmute(b) }
-            }
-            fn as_bytes(&self) -> &[u8] {
-                self.to_string_lossy().as_bytes()
-            }
-        }
-    } else if #[cfg(target_os = "macos")] {
-        mod macos;
-        pub(crate) use std::os::unix::OsStrExt;
-        #[allow(unused_imports)]
-        pub use macos::*;
+/* Windows */
+#[cfg(target_os = "windows")]
+mod windows;
+#[cfg(target_os = "windows")]
+#[allow(unused_imports)]
+pub use windows::*;
+#[cfg(target_os = "windows")]
+pub(crate) trait OsStrExt {
+    fn from_bytes(b: &[u8]) -> &Self;
+    fn as_bytes(&self) -> &[u8];
+}
+#[cfg(target_os = "windows")]
+impl OsStrExt for OsStr {
+    #[allow(clippy::transmute_ptr_to_ptr)]
+    fn from_bytes(b: &[u8]) -> &Self {
+        use std::mem;
+        unsafe { mem::transmute(b) }
+    }
+    fn as_bytes(&self) -> &[u8] {
+        self.to_string_lossy().as_bytes()
     }
 }
+
+/* Macos */
+#[cfg(target_os = "macos")]
+mod macos;
+#[cfg(target_os = "macos")]
+#[allow(unused_imports)]
+pub use macos::*;
 
 pub trait AsPath {
     fn as_path(&self) -> &Path;
