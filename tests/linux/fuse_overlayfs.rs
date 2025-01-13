@@ -1,7 +1,7 @@
 use crate::skip;
 
 use super::{execute_test, read_only_test, read_test, write_test};
-use damascus::{Filesystem, FuseOverlayFs, StackableFilesystem, StateRecovery};
+use damascus::{Filesystem, FuseOverlayFs, LinuxFilesystem, StackableFilesystem, StateRecovery};
 use nix::unistd::geteuid;
 use std::fs::create_dir_all;
 use temp_testdir::TempDir;
@@ -111,7 +111,7 @@ pub fn recover_fuse_overlay_ro_handle() {
     o.mount().unwrap();
 
     let reco = FuseOverlayFs::recover(target).unwrap();
-    // NOTE: retrieved mount options may not match once recover but behavior should be the same
+    assert_eq!(reco.options(), o.options());
     assert_eq!(reco.lower(), o.lower());
     assert_eq!(reco.upper(), o.upper());
     assert_eq!(reco.work(), o.work());
@@ -142,7 +142,7 @@ pub fn recover_fuse_overlay_rw_handle() {
     o.mount().unwrap();
 
     let reco = FuseOverlayFs::recover(target).unwrap();
-    // NOTE: retrieved mount options may not match once recover but behavior should be the same
+    assert_eq!(reco.options(), o.options());
     assert_eq!(reco.lower(), o.lower());
     assert_eq!(reco.upper(), o.upper());
     assert_eq!(reco.work(), o.work());
