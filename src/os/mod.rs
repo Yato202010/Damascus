@@ -19,6 +19,7 @@ mod windows;
 #[allow(unused_imports)]
 pub use windows::*;
 #[cfg(target_os = "windows")]
+#[allow(dead_code)]
 pub(crate) trait OsStrExt {
     fn from_bytes(b: &[u8]) -> &Self;
     fn as_bytes(&self) -> &[u8];
@@ -42,6 +43,7 @@ mod macos;
 #[allow(unused_imports)]
 pub use macos::*;
 
+#[allow(dead_code)]
 pub(crate) trait AsPath {
     fn as_path(&self) -> &Path;
 }
@@ -60,6 +62,7 @@ impl AsPath for CStr {
     }
 }
 
+#[allow(dead_code)]
 pub(crate) trait AsCString {
     fn as_cstring(&self) -> CString;
 }
