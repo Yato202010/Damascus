@@ -2,7 +2,14 @@
 name = "damascus"
 description = "filesystem utility crate for the Flamberge mod manager stack"
 authors = ["Yato202010"]
-keywords = ["filesystem", "fuse-overlayfs", "overlayfs"]
+keywords = [
+  "filesystem",
+  "fuse-overlayfs",
+  "overlayfs",
+  "mount",
+  "umount",
+  "Flamberge",
+]
 version = "0.0.8"
 repository = "https://github.com/Yato202010/Damascus"
 license-file = "LICENSE"
