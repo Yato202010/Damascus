@@ -42,7 +42,7 @@ mod macos;
 #[allow(unused_imports)]
 pub use macos::*;
 
-pub trait AsPath {
+pub(crate) trait AsPath {
     fn as_path(&self) -> &Path;
 }
 
@@ -60,7 +60,7 @@ impl AsPath for CStr {
     }
 }
 
-pub trait AsCString {
+pub(crate) trait AsCString {
     fn as_cstring(&self) -> CString;
 }
 
