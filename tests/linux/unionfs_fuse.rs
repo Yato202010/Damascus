@@ -7,6 +7,10 @@ use std::fs::create_dir_all;
 use temp_testdir::TempDir;
 
 pub fn mount_unionfs_fuse_r() {
+    if !UnionFsFuse::is_available() {
+        skip!("UnionFsFuse is not available");
+        return;
+    }
     if geteuid().is_root() {
         skip!("fuse mount can't be tested as root");
         return;
@@ -26,6 +30,10 @@ pub fn mount_unionfs_fuse_r() {
 }
 
 pub fn mount_unionfs_fuse_rw() {
+    if !UnionFsFuse::is_available() {
+        skip!("UnionFsFuse is not available");
+        return;
+    }
     if geteuid().is_root() {
         skip!("fuse mount can't be tested as root");
         return;
@@ -51,6 +59,10 @@ pub fn mount_unionfs_fuse_rw() {
 }
 
 pub fn mount_unionfs_fuse_rw_on_lower() {
+    if !UnionFsFuse::is_available() {
+        skip!("UnionFsFuse is not available");
+        return;
+    }
     if geteuid().is_root() {
         skip!("fuse mount can't be tested as root");
         return;

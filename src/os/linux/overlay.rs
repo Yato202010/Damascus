@@ -143,6 +143,12 @@ impl OverlayFs {
 impl Filesystem for OverlayFs {
     #[inline]
     fn mount(&mut self) -> Result<PathBuf> {
+        if !Self::is_available() {
+            return Err(Error::new(
+                ErrorKind::NotFound,
+                "overlayfs is not available",
+            ));
+        }
         if matches!(self.id,Some(x) if x == PartitionID::try_from(self.target.as_path())?) {
             debug!("Damascus: partition already mounted");
             return Ok(self.target.as_path().to_path_buf());
@@ -375,15 +381,5 @@ impl Drop for OverlayFs {
                 )
             }
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn availability() {
-        assert!(OverlayFs::is_available())
     }
 }

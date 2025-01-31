@@ -152,6 +152,13 @@ impl FuseOverlayFs {
 impl Filesystem for FuseOverlayFs {
     #[inline]
     fn mount(&mut self) -> Result<PathBuf> {
+        #[cfg(not(feature = "fuse-overlayfs-vendored"))]
+        if !Self::is_available() {
+            return Err(Error::new(
+                ErrorKind::NotFound,
+                "fuse-overlayfs is not available",
+            ));
+        }
         if matches!(self.id,Some(x) if x == PartitionID::try_from(self.target.as_path())?) {
             debug!("Damascus: partition already mounted");
             return Ok(PathBuf::from(&self.target.as_path()));
@@ -480,10 +487,10 @@ impl Drop for FuseOverlayFs {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
+    #[cfg(feature = "fuse-overlayfs-vendored")]
     #[test]
     fn availability() {
+        use super::{Filesystem, FuseOverlayFs};
         assert!(FuseOverlayFs::is_available())
     }
 }
