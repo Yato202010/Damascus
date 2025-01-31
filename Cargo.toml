@@ -10,7 +10,7 @@ keywords = [
   "umount",
   "Flamberge",
 ]
-version = "0.0.8"
+version = "0.0.9"
 repository = "https://github.com/Yato202010/Damascus"
 license-file = "LICENSE"
 edition = "2021"
