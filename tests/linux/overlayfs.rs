@@ -8,8 +8,11 @@
 use crate::skip;
 
 use super::{execute_test, read_only_test, read_test, setup_namespaces, write_test};
-use damascus::{Filesystem, OverlayFs, StackableFilesystem, StateRecovery};
-use nix::unistd::geteuid;
+use damascus::{
+    overlay::OverlayFsOption, Filesystem, LinuxFilesystem, MountOption, OverlayFs,
+    StackableFilesystem, StateRecovery,
+};
+use nix::unistd::{geteuid, getuid};
 use std::fs::create_dir_all;
 use temp_testdir::TempDir;
 
@@ -119,10 +122,31 @@ pub fn recover_overlay_ro_handle() {
     create_dir_all(&lower2).unwrap();
     create_dir_all(&target).unwrap();
     let mut o = OverlayFs::readonly([&lower1, &lower2].iter(), &target).unwrap();
+    if !getuid().is_root() {
+        o.set_option(OverlayFsOption::UserXattr).unwrap();
+    }
     o.mount().unwrap();
 
+    let mut o_opt = o.options().to_vec();
+    o_opt.append(&mut vec![
+        MountOption::RO,
+        MountOption::Other("relatime".to_string()),
+    ]);
+
     let reco = OverlayFs::recover(target).unwrap();
-    // NOTE: retrieved mount options may not match once recover but behavior should be the same
+    let reco_opt = reco.options().to_vec();
+    if !getuid().is_root() {
+        o_opt.append(&mut vec![
+            MountOption::FsSpecific(OverlayFsOption::RedirectDir(
+                damascus::overlay::RedirectDir::NoFollow,
+            )),
+            MountOption::FsSpecific(OverlayFsOption::Index(false)),
+            MountOption::FsSpecific(OverlayFsOption::Metacopy(false)),
+        ]);
+    }
+    for elem in o_opt {
+        assert!(reco_opt.contains(&elem))
+    }
     assert_eq!(reco.lower(), o.lower());
     assert_eq!(reco.upper(), o.upper());
     assert_eq!(reco.work(), o.work());
@@ -152,8 +176,18 @@ pub fn recover_overlay_rw_handle() {
     let mut o = OverlayFs::writable([lower1, lower2].iter(), upper, work, &target).unwrap();
     o.mount().unwrap();
 
+    let mut o_opt = o.options().to_vec();
+    o_opt.append(&mut vec![
+        MountOption::RW,
+        MountOption::Other("relatime".to_string()),
+    ]);
+
     let reco = OverlayFs::recover(target).unwrap();
-    // NOTE: retrieved mount options may not match once recover but behavior should be the same
+    let reco_opt = reco.options().to_vec();
+
+    for elem in o_opt {
+        assert!(reco_opt.contains(&elem))
+    }
     assert_eq!(reco.lower(), o.lower());
     assert_eq!(reco.upper(), o.upper());
     assert_eq!(reco.work(), o.work());

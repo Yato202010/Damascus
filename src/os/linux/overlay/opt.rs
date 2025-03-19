@@ -8,7 +8,7 @@
 use crate::{FsOption, MountOption};
 use std::{fmt::Display, str::FromStr};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum RedirectDir {
     On,
     Follow,
@@ -22,7 +22,7 @@ impl From<RedirectDir> for MountOption<OverlayFsOption> {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum FsVerity {
     On,
     Require,
@@ -35,10 +35,17 @@ impl From<FsVerity> for MountOption<OverlayFsOption> {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Xino {
     On,
     Auto,
+    Off,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Uuid {
+    On,
+    Null,
     Off,
 }
 
@@ -48,7 +55,7 @@ impl From<Xino> for MountOption<OverlayFsOption> {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum OverlayFsOption {
     /// ### On
     /// Redirects are enabled.
@@ -90,7 +97,7 @@ pub enum OverlayFsOption {
     /// This is only applicable if
     /// all lower/upper/work directories are on the same filesystems,
     /// otherwise it'll fall back to normal behaviour.
-    Uuid(bool),
+    Uuid(Uuid),
     /// The "xino"
     /// feature composes a unique object identifier from the real object st_ino and an underlying fsid index.
     /// The "xino" feature uses the high inode number
@@ -115,10 +122,7 @@ pub enum OverlayFsOption {
 
 impl FsOption for OverlayFsOption {
     fn defaults() -> Vec<Self> {
-        vec![
-            OverlayFsOption::Index(true),
-            OverlayFsOption::Xino(Xino::Auto),
-        ]
+        vec![]
     }
 
     fn incompatible(&self, other: &MountOption<Self>) -> bool {
@@ -163,6 +167,12 @@ impl FromStr for OverlayFsOption {
                 "index" => match va {
                     "on" => return Ok(Self::Index(true)),
                     "off" => return Ok(Self::Index(false)),
+                    _ => {}
+                },
+                "uuid" => match va {
+                    "on" => return Ok(Self::Uuid(Uuid::On)),
+                    "off" => return Ok(Self::Uuid(Uuid::Off)),
+                    "null" => return Ok(Self::Uuid(Uuid::Null)),
                     _ => {}
                 },
                 "xino" => match va {
@@ -213,7 +223,11 @@ impl Display for OverlayFsOption {
                     true => "index=on",
                     false => "index=off",
                 },
-                OverlayFsOption::Uuid(_) => todo!(),
+                OverlayFsOption::Uuid(o) => match o {
+                    Uuid::On => "uuid=on",
+                    Uuid::Off => "uuid=off",
+                    Uuid::Null => "uuid=null",
+                },
                 OverlayFsOption::Xino(o) => match o {
                     Xino::On => "xino=on",
                     Xino::Auto => "xino=auto",

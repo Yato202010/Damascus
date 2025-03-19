@@ -8,7 +8,7 @@
 use crate::{FsOption, MountOption};
 
 use std::{fmt::Display, str::FromStr};
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum FuseOverlayFsOption {
     // /// Use separate fuse device fd for each thread
     // CloneFd,

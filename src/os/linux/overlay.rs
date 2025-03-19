@@ -14,10 +14,7 @@
 mod opt;
 pub use opt::*;
 
-use nix::{
-    mount::{mount, umount2, MntFlags, MsFlags},
-    unistd::getuid,
-};
+use nix::mount::{mount, umount2, MntFlags, MsFlags};
 use std::{
     ffi::CString,
     io::{Error, ErrorKind, Result},
@@ -160,7 +157,7 @@ impl Filesystem for OverlayFs {
             debug!("Damascus: partition already mounted");
             return Ok(self.target.as_path().to_path_buf());
         }
-        let mut flags = MsFlags::empty();
+        let flags = MsFlags::empty();
         let mut options = String::new();
         options.push_str("lowerdir=");
         for (i, p) in self.lower.iter().enumerate() {
@@ -174,11 +171,6 @@ impl Filesystem for OverlayFs {
             options.push_str(u.to_string_lossy().as_ref());
             options.push_str(",workdir=");
             options.push_str(w.to_string_lossy().as_ref());
-        } else {
-            flags = flags.union(MsFlags::MS_RDONLY);
-        }
-        if !getuid().is_root() {
-            self.set_option(OverlayFsOption::UserXattr)?;
         }
         for mo in &self.options {
             options.push_str(&(",".to_string() + &mo.to_string()))

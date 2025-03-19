@@ -137,10 +137,13 @@ mod option {
         fn incompatible(&self, other: &MountOption<Self>) -> bool;
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
     pub enum MountOption<O: FsOption> {
+        /// Mount the filesystem read-write.
         RW,
+        /// Mount the filesystem read-only.
         RO,
+        /// Honor set-user-ID and set-group-ID bits or file capabilities when executing programs from this filesystem
         Suid(bool),
         FsSpecific(O),
         Other(String),
