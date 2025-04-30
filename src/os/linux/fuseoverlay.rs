@@ -200,7 +200,7 @@ impl Filesystem for FuseOverlayFs {
         {
             use nix::{
                 sys::{
-                    memfd::{memfd_create, MemFdCreateFlag},
+                    memfd::{memfd_create, MFdFlags},
                     wait::waitpid,
                 },
                 unistd::{fexecve, fork, write, ForkResult},
@@ -208,7 +208,10 @@ impl Filesystem for FuseOverlayFs {
             // init embedded fuse overlay version 1.10 or later since [ 1.7, 1.9 ] doesn't support mounting on top
             // of the base directory
             let byte = include_bytes!(concat!("../../../", env!("FUSE-OVERLAYFS-BIN")));
-            let mem = memfd_create(&CString::new("fuse-overlayfs")?, MemFdCreateFlag::empty())?;
+            let mem = memfd_create(
+                CString::new("fuse-overlayfs")?.as_c_str(),
+                MFdFlags::empty(),
+            )?;
             write(&mem, byte)?;
             let env: Vec<CString> = vec![];
             match unsafe { fork() } {
@@ -216,8 +219,7 @@ impl Filesystem for FuseOverlayFs {
                     waitpid(child, None)?;
                 }
                 Ok(ForkResult::Child) => {
-                    use std::os::fd::AsRawFd;
-                    fexecve(mem.as_raw_fd(), args, &env)?;
+                    fexecve(mem, args, &env)?;
                 }
                 Err(_) => {
                     return Err(io::Error::new(
