@@ -151,14 +151,14 @@ impl Filesystem for UnionFsFuse {
         {
             use nix::{
                 sys::{
-                    memfd::{memfd_create, MemFdCreateFlag},
+                    memfd::{memfd_create, MFdFlags},
                     wait::waitpid,
                 },
                 unistd::{fexecve, fork, write, ForkResult},
             };
             // init embedded unionfs fuse since it's not always packaged by distribution
             let byte = include_bytes!(concat!("../../../", env!("UNIONFS-FUSE-BIN")));
-            let mem = memfd_create(&CString::new("unionfs")?, MemFdCreateFlag::empty())?;
+            let mem = memfd_create(CString::new("unionfs")?.as_c_str(), MFdFlags::empty())?;
             write(&mem, byte)?;
             let env: Vec<CString> = vec![];
             match unsafe { fork() } {
@@ -166,8 +166,7 @@ impl Filesystem for UnionFsFuse {
                     waitpid(child, None)?;
                 }
                 Ok(ForkResult::Child) => {
-                    use std::os::fd::AsRawFd;
-                    fexecve(mem.as_raw_fd(), args, &env)?;
+                    fexecve(mem, args, &env)?;
                 }
                 Err(_) => {
                     return Err(io::Error::new(
