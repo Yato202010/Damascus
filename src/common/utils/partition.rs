@@ -37,44 +37,28 @@ impl TryFrom<&Path> for PartitionID {
 
         #[cfg(target_os = "windows")]
         {
-            use crate::os::OsStrExt;
-            let lpvolumeserialnumber = unsafe {
-                extern crate windows as win;
-                use std::ptr;
-                use win::{
-                    core::PCSTR,
-                    Win32::{
-                        Foundation::HANDLE,
-                        Storage::FileSystem::{
-                            CreateFileA, GetVolumeInformationByHandleW, FILE_ATTRIBUTE_NORMAL,
-                            FILE_GENERIC_READ, FILE_GENERIC_WRITE, FILE_SHARE_READ, OPEN_EXISTING,
-                        },
-                    },
-                };
+            use windows::Win32::Storage::FileSystem::GetVolumeInformationA;
 
-                let path_str = path.as_os_str().as_bytes();
-                let path_wstr = PCSTR::from_raw(path_str.as_ptr());
+            let mut lpvolumeserialnumber = u32::MAX;
 
-                let handle = CreateFileA(
-                    path_wstr,
-                    FILE_GENERIC_READ.0 | FILE_GENERIC_WRITE.0,
-                    FILE_SHARE_READ,
+            // change current working directory to avoid to use lproothpathname which i can't make
+            // it work
+            let current_dir = std::env::current_dir()?;
+            std::env::set_current_dir(path)?;
+
+            unsafe {
+                GetVolumeInformationA(
                     None,
-                    OPEN_EXISTING,
-                    FILE_ATTRIBUTE_NORMAL,
-                    HANDLE(0 as _),
-                )?;
-                let lpvolumeserialnumber = ptr::null_mut();
-                GetVolumeInformationByHandleW(
-                    handle,
                     None,
-                    Some(lpvolumeserialnumber),
+                    Some(&mut lpvolumeserialnumber as *mut u32),
                     None,
                     None,
                     None,
                 )?;
-                (*lpvolumeserialnumber).into()
-            };
+            }
+
+            // restore current working dir
+            std::env::set_current_dir(current_dir)?;
 
             // TODO : move to safe alternative once into rust stable
             //
@@ -89,19 +73,27 @@ impl TryFrom<&Path> for PartitionID {
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {
+
+    use std::fs::create_dir_all;
+
     use super::*;
 
     #[test]
     fn try_from() {
-        #[cfg(target_family = "unix")]
+        let temp_dir = std::env::temp_dir();
+        dbg!(&temp_dir);
+        #[cfg(target_os = "windows")]
         {
-            let id = PartitionID::try_from(Path::new("/tmp/")).unwrap();
+            create_dir_all(&temp_dir).unwrap();
+        }
+        let id = PartitionID::try_from(temp_dir.as_path()).unwrap();
+        #[cfg(target_os = "linux")]
+        {
             assert_ne!(id, PartitionID(0));
         }
         #[cfg(target_os = "windows")]
         {
-            let id = PartitionID::try_from(Path::new("C://User")).unwrap();
-            assert_ne!(id, PartitionID(0));
+            assert_ne!(id, PartitionID(0 >> 16));
         }
     }
 }

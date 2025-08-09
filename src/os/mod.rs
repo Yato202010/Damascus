@@ -39,7 +39,7 @@ impl OsStrExt for OsStr {
         unsafe { mem::transmute(b) }
     }
     fn as_bytes(&self) -> &[u8] {
-        self.to_string_lossy().as_bytes()
+        self.as_encoded_bytes()
     }
 }
 

@@ -7,11 +7,9 @@
 // Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
 use std::{
     fs::{self, File},
-    io::{self, Read, Write},
-    os::windows::prelude::OpenOptionsExt,
+    io::{Read, Write},
     path::Path,
-    process::{self, Command},
-    sync::Once,
+    process::Command,
 };
 
 pub fn register_test() {}
@@ -20,9 +18,10 @@ fn write_test(path: &Path) {
     // Verify write.
     fs::OpenOptions::new()
         .create(true)
+        .truncate(true)
         .write(true)
         .open(path)
-        .or_else(|e| {
+        .map_err(|e| {
             panic!("open failed: {}", e);
         })
         .and_then(|mut f| f.write(SCRIPT_CONTENTS))
@@ -53,7 +52,7 @@ fn execute_test(path: &Path) {
 fn read_only_test(path: &Path) {
     // EROFS: Read-only file system
     assert_eq!(
-        5 as i32,
+        5_i32,
         File::create(path).unwrap_err().raw_os_error().unwrap()
     );
 }

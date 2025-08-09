@@ -14,7 +14,7 @@
 mod opt;
 pub use opt::*;
 
-use nix::mount::{mount, umount2, MntFlags, MsFlags};
+use nix::mount::{MntFlags, MsFlags, mount, umount2};
 use std::{
     ffi::CString,
     io::{Error, ErrorKind, Result},
@@ -23,8 +23,8 @@ use std::{
 use tracing::{debug, error};
 
 use crate::{
-    restore_fsdata, set_option_helper, AsCString, AsPath, Filesystem, FsData, LinuxFilesystem,
-    MountOption, PartitionID, StackableFilesystem, StateRecovery,
+    AsCString, AsPath, Filesystem, FsData, LinuxFilesystem, MountOption, PartitionID,
+    StackableFilesystem, StateRecovery, restore_fsdata, set_option_helper,
 };
 
 #[derive(Debug)]
@@ -177,12 +177,13 @@ impl Filesystem for OverlayFs {
         }
         let mut args = options.as_bytes().to_vec();
         args.push(b'\0');
+        let data = unsafe { CString::from_vec_with_nul_unchecked(args) };
         mount(
             Some(c"overlay"),
             &*self.target,
             Some(c"overlay"),
             flags,
-            Some(unsafe { CString::from_vec_with_nul_unchecked(args).as_bytes() }),
+            Some(data.as_bytes()),
         )
         .inspect_err(|_x| {
             dbg!(&self);
