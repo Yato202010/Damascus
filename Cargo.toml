@@ -52,8 +52,8 @@ fuse-overlayfs = []
 fuse-overlayfs-vendored = ["fuse-overlayfs", "dep:autotools", "dep:fs_extra"]
 build-cache = ["dep:md5", "dep:serde", "dep:serde_json"]
 # WARN : experimental may be removed at any moment
-#unionfs-fuse = []
-#unionfs-fuse-vendored = ["unionfs-fuse", "dep:cmake"]
+unionfs-fuse = []
+unionfs-fuse-vendored = ["unionfs-fuse", "dep:cmake"]
 
 [profile.release]
 lto = true
