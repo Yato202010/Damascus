@@ -11,7 +11,7 @@ fn main() {
     #[cfg(all(feature = "fuse-overlayfs-vendored", target_os = "linux"))]
     {
         let d = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("vendor/fuse-overlayfs/");
-        if !d.exists() {
+        if !d.exists() && vendored::download_submodule().is_err() {
             panic!("fuse-overlayfs submodule is not present fuse-overlayfs-vendored cannot be used")
         }
         const EXEC: &str = "fuse-overlayfs";
@@ -57,7 +57,7 @@ fn main() {
     #[cfg(all(feature = "unionfs-fuse-vendored", target_os = "linux"))]
     {
         let d = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("vendor/unionfs-fuse/");
-        if !d.exists() {
+        if !d.exists() && vendored::download_submodule().is_err() {
             panic!("unionfs-fuse submodule is not present unionfs-fuse-vendored cannot be used")
         }
 
@@ -88,6 +88,20 @@ fn main() {
 
 #[cfg(any(feature = "fuse-overlayfs-vendored", feature = "unionfs-fuse-vendored"))]
 mod vendored {
+    #[inline]
+    #[allow(dead_code)]
+    pub fn download_submodule() -> std::io::Result<()> {
+        if std::process::Command::new("git")
+            .args(["submodule", "update", "--init", "--recursive"])
+            .spawn()?
+            .wait()?
+            .success()
+        {
+            return Ok(());
+        }
+        Err(std::io::Error::other("Cannot get submodule"))
+    }
+
     #[inline]
     #[allow(dead_code)]
     #[cfg(feature = "build-cache")]
