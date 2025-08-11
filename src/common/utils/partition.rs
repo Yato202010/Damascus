@@ -73,9 +73,6 @@ impl TryFrom<&Path> for PartitionID {
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {
-
-    use std::fs::create_dir_all;
-
     use super::*;
 
     #[test]

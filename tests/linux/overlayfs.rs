@@ -9,8 +9,8 @@ use crate::skip;
 
 use super::{execute_test, read_only_test, read_test, setup_namespaces, write_test};
 use damascus::{
-    overlay::OverlayFsOption, Filesystem, LinuxFilesystem, MountOption, OverlayFs,
-    StackableFilesystem, StateRecovery,
+    Filesystem, LinuxFilesystem, MountOption, OverlayFs, StackableFilesystem, StateRecovery,
+    overlay::OverlayFsOption,
 };
 use nix::unistd::{geteuid, getuid};
 use std::fs::create_dir_all;
@@ -21,11 +21,11 @@ pub fn mount_overlay_r() {
         skip!("OverlayFs is not available");
         return;
     }
-    if !geteuid().is_root() {
-        if let Err(_e) = setup_namespaces() {
-            skip!("Cannot setup user namespaces this is not what we are testing");
-            return;
-        }
+    if !geteuid().is_root()
+        && let Err(_e) = setup_namespaces()
+    {
+        skip!("Cannot setup user namespaces this is not what we are testing");
+        return;
     }
     let tmp = TempDir::default().to_path_buf();
     let lower1 = tmp.join("lower1");
@@ -108,11 +108,11 @@ pub fn recover_overlay_ro_handle() {
         skip!("OverlayFs is not available");
         return;
     }
-    if !geteuid().is_root() {
-        if let Err(_e) = setup_namespaces() {
-            skip!("Cannot setup user namespaces this is not what we are testing");
-            return;
-        }
+    if !geteuid().is_root()
+        && let Err(_e) = setup_namespaces()
+    {
+        skip!("Cannot setup user namespaces this is not what we are testing");
+        return;
     }
     let tmp = TempDir::default().to_path_buf();
     let lower1 = tmp.join("lower1");

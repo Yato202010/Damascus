@@ -76,8 +76,7 @@ impl OverlayFs {
     {
         let lower: Vec<PathBuf> = lower.map(|x| x.as_ref().to_path_buf()).collect();
         if lower.len() < 2 {
-            return Err(Error::new(
-                ErrorKind::Other,
+            return Err(Error::other(
                 "overlay FileSystem need a least 2 lower directory to work",
             ));
         }
@@ -103,8 +102,7 @@ impl OverlayFs {
         D: AsRef<Path>,
     {
         if PartitionID::try_from(upper.as_ref())? != PartitionID::try_from(work.as_ref())? {
-            return Err(Error::new(
-                ErrorKind::Other,
+            return Err(Error::other(
                 "overlay FileSystem need the upper dir and the work dir to be on the same FileSystem",
             ));
         }
@@ -134,8 +132,7 @@ impl OverlayFs {
                     .as_path(),
             )?
         {
-            return Err(Error::new(
-                ErrorKind::Other,
+            return Err(Error::other(
                 "overlay FileSystem need the upper dir and the work dir to be on the same FileSystem",
             ));
         }
@@ -190,7 +187,7 @@ impl Filesystem for OverlayFs {
         })?;
         self.id = Some(
             PartitionID::try_from(self.target.as_path())
-                .map_err(|_| Error::new(ErrorKind::Other, "unable to get PartitionID"))?,
+                .map_err(|_| Error::other("unable to get PartitionID"))?,
         );
         Ok(self.target.as_path().to_path_buf())
     }
@@ -227,8 +224,7 @@ impl Filesystem for OverlayFs {
     #[inline]
     fn set_target(&mut self, target: impl AsRef<Path>) -> Result<()> {
         if self.id.is_some() {
-            return Err(Error::new(
-                ErrorKind::Other,
+            return Err(Error::other(
                 "mount point cannot be change when the FileSystem is mounted",
             ));
         }
@@ -273,8 +269,7 @@ impl StackableFilesystem for OverlayFs {
     #[inline]
     fn set_lower(&mut self, lower: impl Into<Vec<PathBuf>>) -> Result<()> {
         if self.id.is_some() {
-            return Err(Error::new(
-                ErrorKind::Other,
+            return Err(Error::other(
                 "upper layer cannot be change when the FileSystem is mounted",
             ));
         }
@@ -298,13 +293,11 @@ impl StackableFilesystem for OverlayFs {
                     .as_path(),
             )?
         {
-            return Err(Error::new(
-                ErrorKind::Other,
+            return Err(Error::other(
                 "overlay FileSystem need the upper dir and the work dir to be on the same FileSystem",
             ));
         } else if self.id.is_some() {
-            return Err(Error::new(
-                ErrorKind::Other,
+            return Err(Error::other(
                 "upper layer cannot be change when the FileSystem is mounted",
             ));
         }
@@ -363,7 +356,7 @@ impl StateRecovery for OverlayFs {
             options,
             id: Some(
                 PartitionID::try_from(path)
-                    .map_err(|_| Error::new(ErrorKind::Other, "unable to get PartitionID"))?,
+                    .map_err(|_| Error::other("unable to get PartitionID"))?,
             ),
             drop: false,
         })
@@ -373,13 +366,13 @@ impl StateRecovery for OverlayFs {
 impl Drop for OverlayFs {
     #[inline]
     fn drop(&mut self) {
-        if self.drop {
-            if let Err(err) = self.unmount() {
-                error!(
-                    "Damascus: unable to unmount overlay at {:?} because : {}",
-                    self.target, err
-                )
-            }
+        if self.drop
+            && let Err(err) = self.unmount()
+        {
+            error!(
+                "Damascus: unable to unmount overlay at {:?} because : {}",
+                self.target, err
+            )
         }
     }
 }

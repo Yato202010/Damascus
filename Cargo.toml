@@ -8,6 +8,7 @@ repository = "https://github.com/Yato202010/Damascus"
 license-file = "LICENSE"
 edition = "2024"
 resolver = "2"
+rust-version = "1.89"
 readme = true
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html

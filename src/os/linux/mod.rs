@@ -22,7 +22,7 @@ pub use overlay::OverlayFs;
 pub(crate) use option::set_option_helper;
 pub use option::{FsOption, LinuxFilesystem, MountOption};
 #[allow(unused_imports)]
-pub(crate) use recover_state::{restore_fsdata, FsData};
+pub(crate) use recover_state::{FsData, restore_fsdata};
 
 /// Provide utility to recover filesystem state from the information provided by the system
 #[allow(dead_code)]
@@ -52,10 +52,7 @@ mod recover_state {
     ) -> Result<Option<FsData<O>>> {
         let fd = unsafe { setmntent(c"/etc/mtab".as_ptr(), "r".as_ptr() as *const i8) };
         if fd.is_null() {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                "Cannot setmntent",
-            ));
+            return Err(std::io::Error::other("Cannot setmntent"));
         }
 
         let mut cont = true;

@@ -14,7 +14,7 @@ pub use opt::*;
 
 use std::{
     ffi::CString,
-    io::{self, Error, ErrorKind, Result},
+    io::{Error, ErrorKind, Result},
     path::{Path, PathBuf},
     process::Command,
     str::FromStr,
@@ -57,8 +57,7 @@ impl FuseOverlayFs {
     {
         let lower: Vec<PathBuf> = lower.map(|x| x.to_path_buf()).collect();
         if lower.len() < 2 {
-            return Err(io::Error::new(
-                io::ErrorKind::Other,
+            return Err(Error::other(
                 "overlay FileSystem need a least 2 lower directory to work",
             ));
         }
@@ -84,8 +83,7 @@ impl FuseOverlayFs {
     {
         let lower: Vec<PathBuf> = lower.map(|x| x.as_ref().to_path_buf()).collect();
         if lower.len() < 2 {
-            return Err(io::Error::new(
-                io::ErrorKind::Other,
+            return Err(Error::other(
                 "overlay FileSystem need a least 2 lower directory to work",
             ));
         }
@@ -112,8 +110,7 @@ impl FuseOverlayFs {
         D: AsRef<Path>,
     {
         if PartitionID::try_from(upper.as_ref())? != PartitionID::try_from(work.as_ref())? {
-            return Err(io::Error::new(
-                io::ErrorKind::Other,
+            return Err(Error::other(
                 "fuse-overlay FileSystem need the upper dir and the work dir to be on the same FileSystem",
             ));
         }
@@ -139,15 +136,11 @@ impl FuseOverlayFs {
             != PartitionID::try_from(
                 self.upper
                     .as_ref()
-                    .ok_or(io::Error::new(
-                        io::ErrorKind::NotFound,
-                        "upper directory not set",
-                    ))?
+                    .ok_or(Error::new(ErrorKind::NotFound, "upper directory not set"))?
                     .as_path(),
             )?
         {
-            return Err(io::Error::new(
-                io::ErrorKind::Other,
+            return Err(Error::other(
                 "fuse-overlay FileSystem need the upper dir and the work dir to be on the same FileSystem",
             ));
         }
@@ -222,10 +215,10 @@ impl Filesystem for FuseOverlayFs {
                     fexecve(mem, args, &env)?;
                 }
                 Err(_) => {
-                    return Err(io::Error::new(
-                        io::ErrorKind::PermissionDenied,
+                    return Err(Error::new(
+                        ErrorKind::PermissionDenied,
                         "Failed to mount vfs",
-                    ))
+                    ));
                 }
             }
         }
@@ -244,8 +237,8 @@ impl Filesystem for FuseOverlayFs {
                     &self,
                     String::from_utf8_lossy(&output.stderr)
                 );
-                return Err(io::Error::new(
-                    io::ErrorKind::PermissionDenied,
+                return Err(Error::new(
+                    ErrorKind::PermissionDenied,
                     "Failed to mount vfs",
                 ));
             }
@@ -253,7 +246,7 @@ impl Filesystem for FuseOverlayFs {
 
         self.id = Some(
             PartitionID::try_from(self.target.as_path())
-                .map_err(|_| Error::new(ErrorKind::Other, "unable to get PartitionID"))?,
+                .map_err(|_| Error::other("unable to get PartitionID"))?,
         );
         Ok(self.target.as_path().to_path_buf())
     }
@@ -272,8 +265,8 @@ impl Filesystem for FuseOverlayFs {
                     &self,
                     String::from_utf8_lossy(&output.stderr)
                 );
-                return Err(io::Error::new(
-                    io::ErrorKind::PermissionDenied,
+                return Err(Error::new(
+                    ErrorKind::PermissionDenied,
                     "Failed to unmount vfs",
                 ));
             }
@@ -305,8 +298,7 @@ impl Filesystem for FuseOverlayFs {
     #[inline]
     fn set_target(&mut self, target: impl AsRef<Path>) -> Result<()> {
         if self.id.is_some() {
-            return Err(io::Error::new(
-                io::ErrorKind::Other,
+            return Err(Error::other(
                 "mount point cannot be change when the FileSystem is mounted",
             ));
         }
@@ -359,8 +351,7 @@ impl StackableFilesystem for FuseOverlayFs {
     #[inline]
     fn set_lower(&mut self, lower: impl Into<Vec<PathBuf>>) -> Result<()> {
         if self.id.is_some() {
-            return Err(io::Error::new(
-                io::ErrorKind::Other,
+            return Err(Error::other(
                 "upper layer cannot be change when the FileSystem is mounted",
             ));
         }
@@ -380,20 +371,15 @@ impl StackableFilesystem for FuseOverlayFs {
             != PartitionID::try_from(
                 self.work
                     .as_ref()
-                    .ok_or(io::Error::new(
-                        io::ErrorKind::NotFound,
-                        "work directory not set",
-                    ))?
+                    .ok_or(Error::new(ErrorKind::NotFound, "work directory not set"))?
                     .as_path(),
             )?
         {
-            return Err(io::Error::new(
-                io::ErrorKind::Other,
+            return Err(Error::other(
                 "fuse-overlay FileSystem need the upper dir and the work dir to be on the same FileSystem",
             ));
         } else if self.id.is_some() {
-            return Err(io::Error::new(
-                io::ErrorKind::Other,
+            return Err(Error::other(
                 "upper layer cannot be change when the FileSystem is mounted",
             ));
         }
@@ -414,10 +400,7 @@ impl StateRecovery for FuseOverlayFs {
                 path,
                 String::from_utf8_lossy(&out.stderr)
             );
-            return Err(io::Error::new(
-                io::ErrorKind::Other,
-                "Failed to recover handle",
-            ));
+            return Err(Error::other("Failed to recover handle"));
         }
         for line in String::from_utf8_lossy(&out.stdout).lines() {
             if let Some(x) = line.strip_prefix("fuse-overlayfs") {
@@ -451,20 +434,21 @@ impl StateRecovery for FuseOverlayFs {
                                 .collect();
                             options.append(&mut elem);
                         }
-                    } else if let Some(target) = Some(CString::new(elem)?) {
-                        if target.as_path() == path {
-                            return Ok(Self {
-                                lower,
-                                upper,
-                                work,
-                                target,
-                                options,
-                                id: Some(PartitionID::try_from(path).map_err(|_| {
-                                    Error::new(ErrorKind::Other, "unable to get PartitionID")
-                                })?),
-                                drop: true,
-                            });
-                        }
+                    } else if let Some(target) = Some(CString::new(elem)?)
+                        && target.as_path() == path
+                    {
+                        return Ok(Self {
+                            lower,
+                            upper,
+                            work,
+                            target,
+                            options,
+                            id: Some(
+                                PartitionID::try_from(path)
+                                    .map_err(|_| Error::other("unable to get PartitionID"))?,
+                            ),
+                            drop: true,
+                        });
                     }
                 }
             }
@@ -473,23 +457,20 @@ impl StateRecovery for FuseOverlayFs {
             "Damascus: unable to recover handle at {:?}\n{}",
             path, "no filesystem of type fuse-overlayfs is mounted"
         );
-        Err(io::Error::new(
-            io::ErrorKind::NotFound,
-            "Failed to recover handle",
-        ))
+        Err(Error::new(ErrorKind::NotFound, "Failed to recover handle"))
     }
 }
 
 impl Drop for FuseOverlayFs {
     #[inline]
     fn drop(&mut self) {
-        if self.drop {
-            if let Err(err) = self.unmount() {
-                error!(
-                    "Damascus: unable to unmount fuse overlay at {:?} because : {}",
-                    self.target, err
-                )
-            }
+        if self.drop
+            && let Err(err) = self.unmount()
+        {
+            error!(
+                "Damascus: unable to unmount fuse overlay at {:?} because : {}",
+                self.target, err
+            )
         }
     }
 }
