@@ -45,6 +45,10 @@ need_stdout = false
 command = ["cargo", "test"]
 need_stdout = true
 
+[jobs.test-all]
+command = ["cargo", "test-all-features"]
+need_stdout = true
+
 [jobs.nextest]
 command = [
   "cargo",
@@ -117,4 +121,6 @@ allow_warnings = true
 # should go in your personal global prefs.toml file instead.
 [keybindings]
 # alt-m = "job:my-job"
-c = "job:clippy-all" # comment this to have 'c' run clippy on only the default target
+c = "job:clippy-all"
+t = "job:test"
+r = "job:test-all"

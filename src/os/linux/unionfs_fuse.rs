@@ -190,8 +190,8 @@ impl Filesystem for UnionFsFuse {
                     &self,
                     String::from_utf8_lossy(&output.stderr)
                 );
-                return Err(io::Error::new(
-                    io::ErrorKind::PermissionDenied,
+                return Err(Error::new(
+                    ErrorKind::PermissionDenied,
                     "Failed to mount vfs",
                 ));
             }
