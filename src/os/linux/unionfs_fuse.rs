@@ -15,7 +15,7 @@ pub use opt::*;
 
 use std::{
     ffi::CString,
-    io::{self, Error, ErrorKind, Result},
+    io::{Error, ErrorKind, Result},
     path::{Path, PathBuf},
     process::Command,
 };
@@ -74,8 +74,7 @@ impl UnionFsFuse {
     {
         let lower: Vec<PathBuf> = lower.map(|x| x.as_ref().to_path_buf()).collect();
         if lower.len() < 2 {
-            return Err(io::Error::new(
-                io::ErrorKind::Other,
+            return Err(Error::other(
                 "overlay FileSystem need a least 2 lower directory to work",
             ));
         }
@@ -151,10 +150,10 @@ impl Filesystem for UnionFsFuse {
         {
             use nix::{
                 sys::{
-                    memfd::{memfd_create, MFdFlags},
+                    memfd::{MFdFlags, memfd_create},
                     wait::waitpid,
                 },
-                unistd::{fexecve, fork, write, ForkResult},
+                unistd::{ForkResult, fexecve, fork, write},
             };
             // init embedded unionfs fuse since it's not always packaged by distribution
             let byte = include_bytes!(concat!("../../../", env!("UNIONFS-FUSE-BIN")));
@@ -169,10 +168,10 @@ impl Filesystem for UnionFsFuse {
                     fexecve(mem, args, &env)?;
                 }
                 Err(_) => {
-                    return Err(io::Error::new(
-                        io::ErrorKind::PermissionDenied,
+                    return Err(Error::new(
+                        ErrorKind::PermissionDenied,
                         "Failed to mount vfs",
-                    ))
+                    ));
                 }
             }
         }
@@ -200,7 +199,7 @@ impl Filesystem for UnionFsFuse {
 
         self.id = Some(
             PartitionID::try_from(self.target.as_path())
-                .map_err(|_| Error::new(ErrorKind::Other, "unable to get PartitionID"))?,
+                .map_err(|_| Error::other("unable to get PartitionID"))?,
         );
         Ok(self.target.as_path().to_path_buf())
     }
@@ -219,8 +218,8 @@ impl Filesystem for UnionFsFuse {
                     &self,
                     String::from_utf8_lossy(&output.stderr)
                 );
-                return Err(io::Error::new(
-                    io::ErrorKind::PermissionDenied,
+                return Err(Error::new(
+                    ErrorKind::PermissionDenied,
                     "Failed to unmount vfs",
                 ));
             }
@@ -252,8 +251,7 @@ impl Filesystem for UnionFsFuse {
     #[inline]
     fn set_target(&mut self, target: impl AsRef<Path>) -> Result<()> {
         if self.id.is_some() {
-            return Err(io::Error::new(
-                io::ErrorKind::Other,
+            return Err(Error::other(
                 "mount point cannot be change when the FileSystem is mounted",
             ));
         }
@@ -312,8 +310,7 @@ impl StackableFilesystem for UnionFsFuse {
     #[inline]
     fn set_lower(&mut self, lower: impl Into<Vec<PathBuf>>) -> Result<()> {
         if self.id.is_some() {
-            return Err(io::Error::new(
-                io::ErrorKind::Other,
+            return Err(Error::other(
                 "upper layer cannot be change when the FileSystem is mounted",
             ));
         }
@@ -329,8 +326,7 @@ impl StackableFilesystem for UnionFsFuse {
     #[inline]
     fn set_upper(&mut self, upper: impl Into<PathBuf>) -> Result<()> {
         if self.id.is_some() {
-            return Err(io::Error::new(
-                io::ErrorKind::Other,
+            return Err(Error::other(
                 "upper layer cannot be change when the FileSystem is mounted",
             ));
         }
@@ -342,13 +338,13 @@ impl StackableFilesystem for UnionFsFuse {
 impl Drop for UnionFsFuse {
     #[inline]
     fn drop(&mut self) {
-        if self.drop {
-            if let Err(err) = self.unmount() {
-                error!(
-                    "Damascus: unable to unmount unionfs fuse at {:?} because : {}",
-                    self.target, err
-                )
-            }
+        if self.drop
+            && let Err(err) = self.unmount()
+        {
+            error!(
+                "Damascus: unable to unmount unionfs fuse at {:?} because : {}",
+                self.target, err
+            )
         }
     }
 }

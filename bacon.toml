@@ -9,16 +9,16 @@ default_job = "check"
 env.CARGO_TERM_COLOR = "always"
 
 [jobs.check]
-command = ["cargo", "check"]
+command = ["cargo", "check", "--all-features"]
 need_stdout = false
 
 [jobs.check-all]
-command = ["cargo", "check", "--all-targets"]
+command = ["cargo", "check", "--all-targets", "--all-features"]
 need_stdout = false
 
 # Run clippy on the default target
 [jobs.clippy]
-command = ["cargo", "clippy"]
+command = ["cargo", "clippy", "--all-features"]
 need_stdout = false
 
 # Run clippy on all targets
@@ -34,7 +34,7 @@ need_stdout = false
 #    ]
 # need_stdout = false
 [jobs.clippy-all]
-command = ["cargo", "clippy", "--all-targets"]
+command = ["cargo", "clippy", "--all-targets", "--all-features"]
 need_stdout = false
 
 # This job lets you run
