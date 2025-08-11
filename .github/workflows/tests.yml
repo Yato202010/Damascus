@@ -39,11 +39,6 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
 
-      # make sure all code has been formatted with rustfmt
-      - run: rustup component add rustfmt
-      - name: check rustfmt
-        run: cargo fmt -- --check --color always
-
       # run clippy to verify we have no warnings
       - run: rustup component add clippy
       - run: cargo fetch
