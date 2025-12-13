@@ -7,8 +7,9 @@
 // Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
 use std::{fmt::Display, path::PathBuf, str::FromStr};
 
-use crate::{FsOption, MountOption};
+use crate::common::fs::MountOption;
 
+#[non_exhaustive]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum UnionFsFuseOption {
     /// Chroot into this path. Use this if you want to have a union of "/"
@@ -29,14 +30,18 @@ pub enum UnionFsFuseOption {
     DirectIo,
 }
 
-impl FsOption for UnionFsFuseOption {
-    fn defaults() -> Vec<Self> {
-        vec![UnionFsFuseOption::Cow, UnionFsFuseOption::HideMetaFiles]
+impl MountOption for UnionFsFuseOption {
+    fn defaults() -> Vec<String> {
+        vec![
+            UnionFsFuseOption::Cow.to_string(),
+            UnionFsFuseOption::HideMetaFiles.to_string(),
+        ]
     }
+}
 
-    fn incompatible(&self, _other: &MountOption<Self>) -> bool {
-        // TODO : find incompatible mount option and define compatibility matrix
-        false
+impl From<UnionFsFuseOption> for String {
+    fn from(val: UnionFsFuseOption) -> Self {
+        val.to_string()
     }
 }
 
@@ -91,11 +96,5 @@ impl Display for UnionFsFuseOption {
                 UnionFsFuseOption::DirectIo => "direct_io".to_owned(),
             }
         )
-    }
-}
-
-impl From<UnionFsFuseOption> for MountOption<UnionFsFuseOption> {
-    fn from(val: UnionFsFuseOption) -> Self {
-        MountOption::FsSpecific(val)
     }
 }

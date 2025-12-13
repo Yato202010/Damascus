@@ -45,8 +45,17 @@ need_stdout = false
 command = ["cargo", "test"]
 need_stdout = true
 
+[jobs.wine-test]
+command = ["cross", "test", "--target=x86_64-pc-windows-gnu"]
+need_stdout = true
+
 [jobs.test-all]
 command = ["cargo", "test-all-features"]
+need_stdout = true
+
+
+[jobs.wine-test-all]
+command = ["cross", "test-all-features", "--target", "x86_64-pc-windows-gnu"]
 need_stdout = true
 
 [jobs.nextest]

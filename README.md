@@ -20,27 +20,36 @@ with filesystem from rust
 ## How to use?
 
 ```rust
-use damascus::{Filesystem, FuseOverlayFs, FuseOverlayFsOption, LinuxFilesystem, MountOption, StateRecovery};
+use damascus::{Filesystem, FuseOverlayFs, FuseOverlayFsOption, StateRecovery};
 
-// handle can be created using complex or simple interface based on need
-// NOTE : drop control if once dropped the filesystem should be unmounted
-let mut o = FuseOverlayFs::new([&lower1, &lower2].iter(), Some(upper), Some(work), target, drop).unwrap();
-// or
-let mut o = FuseOverlayFs::writable([&lower1, &lower2].iter(), upper, work, &target).unwrap();
-// or
-let mut o = FuseOverlayFs::readonly([&lower1, &lower2].iter(), target).unwrap();
+fn main() {
+  let lower1 = Path::new("lowest_layer");
+  let lower2 = Path::new("lower_layer");
+  let upper = Path::new("upper_layer");
+  let work = Path::new("working");
+  let target = Path::new("mount_target");
+  let drop = true;
 
-o.set_option(FuseOverlayFsOption::AllowRoot).unwrap();
-o.set_unmount_on_drop(false); // true by default
+  // handle can be created using complex or simple interface based on need
+  // NOTE : drop control if once dropped the filesystem should be unmounted
+  let mut o = FuseOverlayFs::new([&lower1, &lower2].iter(), Some(upper), Some(work), target, drop).unwrap();
+  // or
+  let mut o = FuseOverlayFs::writable([&lower1, &lower2].iter(), upper, work, &target).unwrap();
+  // or
+  let mut o = FuseOverlayFs::readonly([&lower1, &lower2].iter(), target).unwrap();
 
-// once configured you can mount it
-o.mount().unwrap();
+  o.add_option(FuseOverlayFsOption::AllowRoot).unwrap();
+  o.set_unmount_on_drop(false); // true by default
 
-// and then unmount it
-o.unmount().unwrap();
+  // once configured you can mount it
+  o.mount().unwrap();
 
-// if handle is lost it can be recovered from system information
-let recovered = FuseOverlayFs::recover(target).unwrap();
+  // if handle is lost it can be recovered from system information
+  let recovered = FuseOverlayFs::recover(target).unwrap();
+
+  // and then unmount it
+  o.unmount().unwrap();
+}
 ```
 
 ## FAQ

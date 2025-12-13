@@ -5,10 +5,12 @@
 //     http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
-use crate::{FsOption, MountOption};
 use std::{fmt::Display, str::FromStr};
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+use crate::common::fs::MountOption;
+
+#[non_exhaustive]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum RedirectDir {
     On,
     Follow,
@@ -16,45 +18,107 @@ pub enum RedirectDir {
     Off,
 }
 
-impl From<RedirectDir> for MountOption<OverlayFsOption> {
+impl From<RedirectDir> for OverlayFsOption {
     fn from(val: RedirectDir) -> Self {
-        MountOption::FsSpecific(OverlayFsOption::RedirectDir(val))
+        OverlayFsOption::RedirectDir(val)
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+impl Display for RedirectDir {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let option: OverlayFsOption = (*self).into();
+        f.write_str(&option.to_string())
+    }
+}
+
+impl From<RedirectDir> for String {
+    fn from(o: RedirectDir) -> String {
+        o.to_string()
+    }
+}
+
+#[non_exhaustive]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum FsVerity {
     On,
     Require,
     Off,
 }
 
-impl From<FsVerity> for MountOption<OverlayFsOption> {
-    fn from(val: FsVerity) -> Self {
-        MountOption::FsSpecific(OverlayFsOption::FsVerity(val))
+impl Display for FsVerity {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let option: OverlayFsOption = (*self).into();
+        f.write_str(&option.to_string())
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+impl From<FsVerity> for OverlayFsOption {
+    fn from(val: FsVerity) -> Self {
+        OverlayFsOption::FsVerity(val)
+    }
+}
+
+impl From<FsVerity> for String {
+    fn from(o: FsVerity) -> String {
+        o.to_string()
+    }
+}
+
+#[non_exhaustive]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Xino {
     On,
     Auto,
     Off,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+impl Display for Xino {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let option: OverlayFsOption = (*self).into();
+        f.write_str(&option.to_string())
+    }
+}
+
+impl From<Xino> for OverlayFsOption {
+    fn from(val: Xino) -> Self {
+        OverlayFsOption::Xino(val)
+    }
+}
+
+impl From<Xino> for String {
+    fn from(o: Xino) -> String {
+        o.to_string()
+    }
+}
+
+#[non_exhaustive]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Uuid {
     On,
     Null,
     Off,
 }
 
-impl From<Xino> for MountOption<OverlayFsOption> {
-    fn from(val: Xino) -> Self {
-        MountOption::FsSpecific(OverlayFsOption::Xino(val))
+impl Display for Uuid {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let option: OverlayFsOption = (*self).into();
+        f.write_str(&option.to_string())
     }
 }
 
+impl From<Uuid> for OverlayFsOption {
+    fn from(val: Uuid) -> Self {
+        OverlayFsOption::Uuid(val)
+    }
+}
+
+impl From<Uuid> for String {
+    fn from(o: Uuid) -> String {
+        o.to_string()
+    }
+}
+
+#[non_exhaustive]
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum OverlayFsOption {
     /// ### On
@@ -117,27 +181,7 @@ pub enum OverlayFsOption {
     /// recreated without significant effort.
     Volatile,
     // TODO : check doc and incompatibility
-    // NfsExport,
-}
-
-impl FsOption for OverlayFsOption {
-    fn defaults() -> Vec<Self> {
-        vec![]
-    }
-
-    fn incompatible(&self, other: &MountOption<Self>) -> bool {
-        let incompat_matrix = [|s: &OverlayFsOption, o: &MountOption<OverlayFsOption>| {
-            matches!(s, OverlayFsOption::UserXattr)
-                && matches!(o, MountOption::FsSpecific(OverlayFsOption::FsVerity(_)))
-        }];
-
-        for incompat in incompat_matrix {
-            if incompat(self, other) {
-                return true;
-            }
-        }
-        false
-    }
+    NfsExport(bool),
 }
 
 impl FromStr for OverlayFsOption {
@@ -179,6 +223,11 @@ impl FromStr for OverlayFsOption {
                     "on" => return Ok(Self::Xino(Xino::On)),
                     "auto" => return Ok(Self::Xino(Xino::Auto)),
                     "off" => return Ok(Self::Xino(Xino::Off)),
+                    _ => {}
+                },
+                "nfs_export" => match va {
+                    "on" => return Ok(Self::NfsExport(true)),
+                    "off" => return Ok(Self::NfsExport(false)),
                     _ => {}
                 },
                 _ => {}
@@ -233,6 +282,10 @@ impl Display for OverlayFsOption {
                     Xino::Auto => "xino=auto",
                     Xino::Off => "xino=off",
                 },
+                OverlayFsOption::NfsExport(o) => match o {
+                    true => "nfs_export=on",
+                    false => "nfs_export=off",
+                },
                 OverlayFsOption::UserXattr => "userxattr",
                 OverlayFsOption::Volatile => "volatile",
             }
@@ -240,8 +293,20 @@ impl Display for OverlayFsOption {
     }
 }
 
-impl From<OverlayFsOption> for MountOption<OverlayFsOption> {
-    fn from(val: OverlayFsOption) -> Self {
-        MountOption::FsSpecific(val)
+impl MountOption for OverlayFsOption {
+    fn defaults() -> Vec<String> {
+        vec![]
+    }
+}
+
+impl From<OverlayFsOption> for String {
+    fn from(o: OverlayFsOption) -> String {
+        o.to_string()
+    }
+}
+
+impl From<&OverlayFsOption> for String {
+    fn from(o: &OverlayFsOption) -> String {
+        o.to_string()
     }
 }

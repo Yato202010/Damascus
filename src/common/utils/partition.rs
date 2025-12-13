@@ -9,14 +9,9 @@ use std::path::Path;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 /// Representation of a partition unique identifier
-pub struct PartitionID(
-    /// Partition dev id
-    #[cfg(target_family = "unix")]
-    u64,
-    /// Partition volume serial number
-    #[cfg(target_os = "windows")]
-    u32,
-);
+///
+/// NOTE : on windows this will return a u64 even if the FileSystem use u32
+pub struct PartitionID(u64);
 
 impl TryFrom<&Path> for PartitionID {
     type Error = std::io::Error;
@@ -37,18 +32,13 @@ impl TryFrom<&Path> for PartitionID {
 
         #[cfg(target_os = "windows")]
         {
-            use windows::Win32::Storage::FileSystem::GetVolumeInformationA;
+            use windows::Win32::Storage::FileSystem::GetVolumeInformationW;
+            use windows_strings::HSTRING;
 
             let mut lpvolumeserialnumber = u32::MAX;
-
-            // change current working directory to avoid to use lproothpathname which i can't make
-            // it work
-            let current_dir = std::env::current_dir()?;
-            std::env::set_current_dir(path)?;
-
             unsafe {
-                GetVolumeInformationA(
-                    None,
+                GetVolumeInformationW(
+                    &HSTRING::from(path),
                     None,
                     Some(&mut lpvolumeserialnumber as *mut u32),
                     None,
@@ -57,15 +47,12 @@ impl TryFrom<&Path> for PartitionID {
                 )?;
             }
 
-            // restore current working dir
-            std::env::set_current_dir(current_dir)?;
-
             // TODO : move to safe alternative once into rust stable
             //
             // use std::os::windows::fs::MetadataExt;
             // let lpvolumeserialnumber = std::fs::metadata(path)?
             //     .volume_serial_number().unwrap_unchecked();
-            Ok(PartitionID(lpvolumeserialnumber))
+            Ok(PartitionID(lpvolumeserialnumber as u64))
         }
     }
 }
@@ -79,18 +66,7 @@ mod tests {
     fn try_from() {
         let temp_dir = std::env::temp_dir();
         dbg!(&temp_dir);
-        #[cfg(target_os = "windows")]
-        {
-            create_dir_all(&temp_dir).unwrap();
-        }
         let id = PartitionID::try_from(temp_dir.as_path()).unwrap();
-        #[cfg(target_os = "linux")]
-        {
-            assert_ne!(id, PartitionID(0));
-        }
-        #[cfg(target_os = "windows")]
-        {
-            assert_ne!(id, PartitionID(0 >> 16));
-        }
+        assert_ne!(id, PartitionID(0));
     }
 }

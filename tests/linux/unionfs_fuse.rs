@@ -32,6 +32,7 @@ pub fn mount_unionfs_fuse_r() {
     create_dir_all(&target).unwrap();
     let mut o = UnionFsFuse::readonly([&lower1, &lower2].iter(), &target).unwrap();
     o.mount().unwrap();
+    assert!(o.mounted());
 
     read_only_test(&test);
 }
@@ -57,6 +58,7 @@ pub fn mount_unionfs_fuse_rw() {
     create_dir_all(&upper).unwrap();
     let mut o = UnionFsFuse::writable([lower1, lower2].iter(), &upper, &target).unwrap();
     o.mount().unwrap();
+    assert!(o.mounted());
 
     write_test(&test);
 
@@ -86,6 +88,7 @@ pub fn mount_unionfs_fuse_rw_on_lower() {
     create_dir_all(&upper).unwrap();
     let mut o = UnionFsFuse::writable([lower1, lower2].iter(), upper, target).unwrap();
     o.mount().unwrap();
+    assert!(o.mounted());
 
     write_test(&test);
 

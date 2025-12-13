@@ -12,19 +12,21 @@
 */
 
 mod opt;
+use crate::common::fs::MountOption;
 pub use opt::*;
 
 use nix::mount::{MntFlags, MsFlags, mount, umount2};
 use std::{
     ffi::CString,
     io::{Error, ErrorKind, Result},
+    ops::Deref,
     path::{Path, PathBuf},
 };
 use tracing::{debug, error};
 
 use crate::{
-    AsCString, AsPath, Filesystem, FsData, LinuxFilesystem, MountOption, PartitionID,
-    StackableFilesystem, StateRecovery, restore_fsdata, set_option_helper,
+    AsCString, AsPath, Filesystem, FsData, PartitionID, StackableFilesystem, StateRecovery,
+    restore_fsdata,
 };
 
 #[derive(Debug)]
@@ -34,7 +36,7 @@ pub struct OverlayFs {
     upper: Option<PathBuf>,
     work: Option<PathBuf>,
     target: CString,
-    options: Vec<MountOption<OverlayFsOption>>,
+    options: Vec<String>,
     id: Option<PartitionID>,
     drop: bool,
 }
@@ -42,25 +44,22 @@ pub struct OverlayFs {
 impl OverlayFs {
     #[must_use = "initialised OverlayFs handle should be used"]
     #[inline]
-    pub fn new<'x, I, B, C, D>(
-        lower: I,
-        upper: Option<B>,
-        work: Option<C>,
-        target: D,
+    pub fn new(
+        lower: impl IntoIterator<Item = impl AsRef<Path>>,
+        upper: Option<impl Into<PathBuf>>,
+        work: Option<impl Into<PathBuf>>,
+        target: impl AsRef<Path>,
         drop: bool,
-    ) -> Result<OverlayFs>
-    where
-        I: Iterator<Item = &'x Path>,
-        B: Into<PathBuf>,
-        C: Into<PathBuf>,
-        D: AsRef<Path>,
-    {
+    ) -> Result<OverlayFs> {
         Ok(Self {
-            lower: lower.map(|x| x.to_path_buf()).collect(),
+            lower: lower
+                .into_iter()
+                .map(|x| x.as_ref().to_path_buf())
+                .collect(),
             upper: upper.map(|x| x.into()),
             work: work.map(|x| x.into()),
             target: target.as_ref().as_cstring(),
-            options: MountOption::defaults(),
+            options: OverlayFsOption::defaults(),
             id: None,
             drop,
         })
@@ -68,13 +67,14 @@ impl OverlayFs {
 
     #[must_use = "initialised OverlayFs handle should be used"]
     #[inline]
-    pub fn readonly<I, A, T>(lower: I, target: T) -> Result<OverlayFs>
-    where
-        I: Iterator<Item = A>,
-        A: AsRef<Path>,
-        T: AsRef<Path>,
-    {
-        let lower: Vec<PathBuf> = lower.map(|x| x.as_ref().to_path_buf()).collect();
+    pub fn readonly(
+        lower: impl IntoIterator<Item = impl AsRef<Path>>,
+        target: impl AsRef<Path>,
+    ) -> Result<OverlayFs> {
+        let lower: Vec<PathBuf> = lower
+            .into_iter()
+            .map(|x| x.as_ref().to_path_buf())
+            .collect();
         if lower.len() < 2 {
             return Err(Error::other(
                 "overlay FileSystem need a least 2 lower directory to work",
@@ -85,7 +85,7 @@ impl OverlayFs {
             upper: None,
             work: None,
             target: target.as_ref().as_cstring(),
-            options: MountOption::defaults(),
+            options: OverlayFsOption::defaults(),
             id: None,
             drop: true,
         })
@@ -93,25 +93,26 @@ impl OverlayFs {
 
     #[must_use = "initialised OverlayFs handle should be used"]
     #[inline]
-    pub fn writable<I, A, B, C, D>(lower: I, upper: B, work: C, target: D) -> Result<OverlayFs>
-    where
-        I: Iterator<Item = A>,
-        A: AsRef<Path>,
-        B: AsRef<Path>,
-        C: AsRef<Path>,
-        D: AsRef<Path>,
-    {
+    pub fn writable(
+        lower: impl IntoIterator<Item = impl AsRef<Path>>,
+        upper: impl AsRef<Path>,
+        work: impl AsRef<Path>,
+        target: impl AsRef<Path>,
+    ) -> Result<OverlayFs> {
         if PartitionID::try_from(upper.as_ref())? != PartitionID::try_from(work.as_ref())? {
             return Err(Error::other(
                 "overlay FileSystem need the upper dir and the work dir to be on the same FileSystem",
             ));
         }
         Ok(OverlayFs {
-            lower: lower.map(|x| x.as_ref().to_path_buf()).collect(),
+            lower: lower
+                .into_iter()
+                .map(|x| x.as_ref().to_path_buf())
+                .collect(),
             upper: Some(upper.as_ref().to_path_buf()),
             work: Some(work.as_ref().to_path_buf()),
             target: target.as_ref().as_cstring(),
-            options: MountOption::defaults(),
+            options: OverlayFsOption::defaults(),
             id: None,
             drop: true,
         })
@@ -143,7 +144,7 @@ impl OverlayFs {
 
 impl Filesystem for OverlayFs {
     #[inline]
-    fn mount(&mut self) -> Result<PathBuf> {
+    fn mount(&mut self) -> Result<&mut Self> {
         if !Self::is_available() {
             return Err(Error::new(
                 ErrorKind::NotFound,
@@ -152,7 +153,7 @@ impl Filesystem for OverlayFs {
         }
         if matches!(self.id,Some(x) if x == PartitionID::try_from(self.target.as_path())?) {
             debug!("Damascus: partition already mounted");
-            return Ok(self.target.as_path().to_path_buf());
+            return Ok(self);
         }
         let flags = MsFlags::empty();
         let mut options = String::new();
@@ -189,26 +190,27 @@ impl Filesystem for OverlayFs {
             PartitionID::try_from(self.target.as_path())
                 .map_err(|_| Error::other("unable to get PartitionID"))?,
         );
-        Ok(self.target.as_path().to_path_buf())
+        Ok(self)
     }
 
     #[inline]
-    fn unmount(&mut self) -> Result<()> {
+    fn unmount(&mut self) -> Result<&mut Self> {
         if matches!(self.id,Some(x) if x == PartitionID::try_from(self.target.as_path())?) {
             umount2(self.target.as_c_str(), MntFlags::MNT_DETACH)?;
             self.id = None;
         }
-        Ok(())
+        Ok(self)
     }
 
     #[inline]
-    fn unmount_on_drop(&self) -> bool {
+    fn scoped(&self) -> bool {
         self.drop
     }
 
     #[inline]
-    fn set_unmount_on_drop(&mut self, drop: bool) {
+    fn set_scoped(&mut self, drop: bool) -> &mut Self {
         self.drop = drop;
+        self
     }
 
     #[inline]
@@ -222,14 +224,14 @@ impl Filesystem for OverlayFs {
     }
 
     #[inline]
-    fn set_target(&mut self, target: impl AsRef<Path>) -> Result<()> {
+    fn set_target(&mut self, target: impl AsRef<Path>) -> Result<&mut Self> {
         if self.id.is_some() {
             return Err(Error::other(
                 "mount point cannot be change when the FileSystem is mounted",
             ));
         }
         self.target = target.as_ref().as_cstring();
-        Ok(())
+        Ok(self)
     }
 
     fn is_available() -> bool {
@@ -239,24 +241,19 @@ impl Filesystem for OverlayFs {
             false
         }
     }
-}
 
-impl LinuxFilesystem<OverlayFsOption> for OverlayFs {
-    fn set_option(&mut self, option: impl Into<MountOption<OverlayFsOption>>) -> Result<()> {
-        set_option_helper(&mut self.options, option)
-    }
-
-    fn remove_option(&mut self, option: impl Into<MountOption<OverlayFsOption>>) -> Result<()> {
-        let option = option.into();
-        let idx = self.options.iter().position(|x| *x == option);
-        if let Some(idx) = idx {
-            let _ = self.options.remove(idx);
-        }
+    fn add_option(&mut self, option: impl Into<String>) -> Result<()> {
+        self.options.push(option.into());
         Ok(())
     }
 
-    fn options(&self) -> &[MountOption<OverlayFsOption>] {
-        &self.options
+    fn remove_option(&mut self, option: impl AsRef<str>) -> Result<()> {
+        self.options.retain(|x| x.deref() != option.as_ref());
+        Ok(())
+    }
+
+    fn options(&self) -> &[String] {
+        self.options.deref()
     }
 }
 
@@ -267,14 +264,20 @@ impl StackableFilesystem for OverlayFs {
     }
 
     #[inline]
-    fn set_lower(&mut self, lower: impl Into<Vec<PathBuf>>) -> Result<()> {
+    fn set_lower(
+        &mut self,
+        lower: impl IntoIterator<Item = impl AsRef<Path>>,
+    ) -> Result<&mut Self> {
         if self.id.is_some() {
             return Err(Error::other(
                 "upper layer cannot be change when the FileSystem is mounted",
             ));
         }
-        self.lower = lower.into();
-        Ok(())
+        self.lower = lower
+            .into_iter()
+            .map(|x| x.as_ref().to_path_buf())
+            .collect();
+        Ok(self)
     }
 
     #[inline]
@@ -283,7 +286,7 @@ impl StackableFilesystem for OverlayFs {
     }
 
     #[inline]
-    fn set_upper(&mut self, upper: impl Into<PathBuf>) -> Result<()> {
+    fn set_upper(&mut self, upper: impl Into<PathBuf>) -> Result<&mut Self> {
         let upper = upper.into();
         if PartitionID::try_from(upper.as_path())?
             != PartitionID::try_from(
@@ -302,14 +305,14 @@ impl StackableFilesystem for OverlayFs {
             ));
         }
         self.upper = Some(upper);
-        Ok(())
+        Ok(self)
     }
 }
 
 impl StateRecovery for OverlayFs {
     fn recover<P: AsRef<Path>>(path: P) -> Result<Self> {
         let path = path.as_ref();
-        let data: FsData<OverlayFsOption> = restore_fsdata(path)?.ok_or(Error::new(
+        let data: FsData = restore_fsdata(path)?.ok_or(Error::new(
             ErrorKind::NotFound,
             "OverlayFs not found at mount point : ".to_string() + &path.to_string_lossy(),
         ))?;
@@ -321,29 +324,27 @@ impl StateRecovery for OverlayFs {
             .options()
             .iter()
             .filter_map(|x| {
-                if let MountOption::Other(str) = x {
-                    let (o, va) = if let Some(x) = str.split_once('=') {
-                        x
-                    } else {
-                        return Some(x.to_owned());
-                    };
-                    match o {
-                        "lowerdir" => {
-                            for path in va.split(':') {
-                                lower.push(PathBuf::from(path))
-                            }
-                            return None;
+                let (o, va) = if let Some(x) = x.split_once('=') {
+                    x
+                } else {
+                    return Some(x.to_owned());
+                };
+                match o {
+                    "lowerdir" => {
+                        for path in va.split(':') {
+                            lower.push(PathBuf::from(path))
                         }
-                        "upperdir" => {
-                            upper = Some(PathBuf::from(va));
-                            return None;
-                        }
-                        "workdir" => {
-                            work = Some(PathBuf::from(va));
-                            return None;
-                        }
-                        _ => {}
+                        return None;
                     }
+                    "upperdir" => {
+                        upper = Some(PathBuf::from(va));
+                        return None;
+                    }
+                    "workdir" => {
+                        work = Some(PathBuf::from(va));
+                        return None;
+                    }
+                    _ => {}
                 }
                 Some(x.to_owned())
             })

@@ -16,14 +16,14 @@ pub use opt::*;
 use std::{
     ffi::CString,
     io::{Error, ErrorKind, Result},
+    ops::Deref,
     path::{Path, PathBuf},
     process::Command,
 };
 use tracing::{debug, error};
 
-use crate::os::set_option_helper;
 use crate::{
-    AsCString, AsPath, Filesystem, LinuxFilesystem, MountOption, PartitionID, StackableFilesystem,
+    AsCString, AsPath, Filesystem, PartitionID, StackableFilesystem, common::fs::MountOption,
 };
 
 #[derive(Debug)]
@@ -32,7 +32,7 @@ pub struct UnionFsFuse {
     lower: Vec<PathBuf>,
     upper: Option<PathBuf>,
     target: CString,
-    options: Vec<MountOption<UnionFsFuseOption>>,
+    options: Vec<String>,
     id: Option<PartitionID>,
     drop: bool,
 }
@@ -41,23 +41,21 @@ impl UnionFsFuse {
     #[must_use = "initialised UnionFsFuse handle should be used"]
     #[inline]
     /// Initialise a new UnionFsFuse handle
-    pub fn new<'x, I, B, D>(
-        lower: I,
-        upper: Option<B>,
-        target: D,
+    pub fn new(
+        lower: impl IntoIterator<Item = impl AsRef<Path>>,
+        upper: Option<impl Into<PathBuf>>,
+        target: impl AsRef<Path>,
         drop: bool,
-    ) -> Result<UnionFsFuse>
-    where
-        I: Iterator<Item = &'x Path>,
-        B: Into<PathBuf>,
-        D: AsRef<Path>,
-    {
-        let lower: Vec<PathBuf> = lower.map(|x| x.to_path_buf()).collect();
+    ) -> Result<UnionFsFuse> {
+        let lower: Vec<PathBuf> = lower
+            .into_iter()
+            .map(|x| x.as_ref().to_path_buf())
+            .collect();
         Ok(Self {
             lower,
             upper: upper.map(|x| x.into()),
             target: target.as_ref().as_cstring(),
-            options: MountOption::defaults(),
+            options: UnionFsFuseOption::defaults(),
             id: None,
             drop,
         })
@@ -66,13 +64,14 @@ impl UnionFsFuse {
     #[must_use = "initialised UnionFsFuse handle should be used"]
     #[inline]
     /// Initialise a new readonly UnionFsFuse handle
-    pub fn readonly<I, A, T>(lower: I, target: T) -> Result<UnionFsFuse>
-    where
-        I: Iterator<Item = A>,
-        A: AsRef<Path>,
-        T: AsRef<Path>,
-    {
-        let lower: Vec<PathBuf> = lower.map(|x| x.as_ref().to_path_buf()).collect();
+    pub fn readonly(
+        lower: impl IntoIterator<Item = impl AsRef<Path>>,
+        target: impl AsRef<Path>,
+    ) -> Result<UnionFsFuse> {
+        let lower: Vec<PathBuf> = lower
+            .into_iter()
+            .map(|x| x.as_ref().to_path_buf())
+            .collect();
         if lower.len() < 2 {
             return Err(Error::other(
                 "overlay FileSystem need a least 2 lower directory to work",
@@ -82,7 +81,7 @@ impl UnionFsFuse {
             lower,
             upper: None,
             target: target.as_ref().as_cstring(),
-            options: MountOption::defaults(),
+            options: UnionFsFuseOption::defaults(),
             id: None,
             drop: true,
         })
@@ -91,18 +90,19 @@ impl UnionFsFuse {
     #[must_use = "initialised UnionFsFuse handle should be used"]
     #[inline]
     /// Initialise a new writable UnionFsFuse handle
-    pub fn writable<I, A, B, D>(lower: I, upper: B, target: D) -> Result<Self>
-    where
-        I: Iterator<Item = A>,
-        A: AsRef<Path>,
-        B: AsRef<Path>,
-        D: AsRef<Path>,
-    {
+    pub fn writable(
+        lower: impl IntoIterator<Item = impl AsRef<Path>>,
+        upper: impl AsRef<Path>,
+        target: impl AsRef<Path>,
+    ) -> Result<Self> {
         Ok(Self {
-            lower: lower.map(|x| x.as_ref().to_path_buf()).collect(),
+            lower: lower
+                .into_iter()
+                .map(|x| x.as_ref().to_path_buf())
+                .collect(),
             upper: Some(upper.as_ref().to_path_buf()),
             target: target.as_ref().as_cstring(),
-            options: MountOption::defaults(),
+            options: UnionFsFuseOption::defaults(),
             id: None,
             drop: true,
         })
@@ -111,7 +111,7 @@ impl UnionFsFuse {
 
 impl Filesystem for UnionFsFuse {
     #[inline]
-    fn mount(&mut self) -> Result<PathBuf> {
+    fn mount(&mut self) -> Result<&mut Self> {
         #[cfg(not(feature = "unionfs-fuse-vendored"))]
         if !Self::is_available() {
             return Err(Error::new(
@@ -121,7 +121,7 @@ impl Filesystem for UnionFsFuse {
         }
         if matches!(self.id,Some(x) if x == PartitionID::try_from(self.target.as_path())?) {
             debug!("Damascus: partition already mounted");
-            return Ok(PathBuf::from(&self.target.as_path()));
+            return Ok(self);
         }
         let mut layer_args: String = String::new();
         for path in &self.lower {
@@ -201,11 +201,11 @@ impl Filesystem for UnionFsFuse {
             PartitionID::try_from(self.target.as_path())
                 .map_err(|_| Error::other("unable to get PartitionID"))?,
         );
-        Ok(self.target.as_path().to_path_buf())
+        Ok(self)
     }
 
     #[inline]
-    fn unmount(&mut self) -> Result<()> {
+    fn unmount(&mut self) -> Result<&mut Self> {
         if matches!(self.id,Some(x) if x == PartitionID::try_from(self.target.as_path())?) {
             let child = Command::new("fusermount")
                 .args(["-z", "-u"])
@@ -225,17 +225,18 @@ impl Filesystem for UnionFsFuse {
             }
             self.id = None;
         }
-        Ok(())
+        Ok(self)
     }
 
     #[inline]
-    fn unmount_on_drop(&self) -> bool {
+    fn scoped(&self) -> bool {
         self.drop
     }
 
     #[inline]
-    fn set_unmount_on_drop(&mut self, drop: bool) {
+    fn set_scoped(&mut self, drop: bool) -> &mut Self {
         self.drop = drop;
+        self
     }
 
     #[inline]
@@ -249,14 +250,14 @@ impl Filesystem for UnionFsFuse {
     }
 
     #[inline]
-    fn set_target(&mut self, target: impl AsRef<Path>) -> Result<()> {
+    fn set_target(&mut self, target: impl AsRef<Path>) -> Result<&mut Self> {
         if self.id.is_some() {
             return Err(Error::other(
                 "mount point cannot be change when the FileSystem is mounted",
             ));
         }
         self.target = target.as_ref().as_cstring();
-        Ok(())
+        Ok(self)
     }
 
     fn is_available() -> bool {
@@ -274,30 +275,19 @@ impl Filesystem for UnionFsFuse {
                 .is_ok()
         }
     }
-}
 
-impl LinuxFilesystem<UnionFsFuseOption> for UnionFsFuse {
-    fn set_option(
-        &mut self,
-        option: impl Into<crate::MountOption<UnionFsFuseOption>>,
-    ) -> Result<()> {
-        set_option_helper(&mut self.options, option.into())
-    }
-
-    fn remove_option(
-        &mut self,
-        option: impl Into<crate::MountOption<UnionFsFuseOption>>,
-    ) -> Result<()> {
-        let option = option.into();
-        let idx = self.options.iter().position(|x| *x == option);
-        if let Some(idx) = idx {
-            let _ = self.options.remove(idx);
-        }
+    fn add_option(&mut self, option: impl Into<String>) -> Result<()> {
+        self.options.push(option.into());
         Ok(())
     }
 
-    fn options(&self) -> &[crate::MountOption<UnionFsFuseOption>] {
-        &self.options
+    fn remove_option(&mut self, option: impl AsRef<str>) -> Result<()> {
+        self.options.retain(|x| x.deref() != option.as_ref());
+        Ok(())
+    }
+
+    fn options(&self) -> &[String] {
+        self.options.deref()
     }
 }
 
@@ -308,14 +298,20 @@ impl StackableFilesystem for UnionFsFuse {
     }
 
     #[inline]
-    fn set_lower(&mut self, lower: impl Into<Vec<PathBuf>>) -> Result<()> {
+    fn set_lower(
+        &mut self,
+        lower: impl IntoIterator<Item = impl AsRef<Path>>,
+    ) -> Result<&mut Self> {
         if self.id.is_some() {
             return Err(Error::other(
                 "upper layer cannot be change when the FileSystem is mounted",
             ));
         }
-        self.lower = lower.into();
-        Ok(())
+        self.lower = lower
+            .into_iter()
+            .map(|x| x.as_ref().to_path_buf())
+            .collect();
+        Ok(self)
     }
 
     #[inline]
@@ -324,14 +320,14 @@ impl StackableFilesystem for UnionFsFuse {
     }
 
     #[inline]
-    fn set_upper(&mut self, upper: impl Into<PathBuf>) -> Result<()> {
+    fn set_upper(&mut self, upper: impl Into<PathBuf>) -> Result<&mut Self> {
         if self.id.is_some() {
             return Err(Error::other(
                 "upper layer cannot be change when the FileSystem is mounted",
             ));
         }
         self.upper = Some(upper.into());
-        Ok(())
+        Ok(self)
     }
 }
 

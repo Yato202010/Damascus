@@ -5,13 +5,15 @@
 //     http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
-use crate::{FsOption, MountOption};
-
 use std::{fmt::Display, str::FromStr};
+
+use crate::common::fs::MountOption;
+
+#[non_exhaustive]
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum FuseOverlayFsOption {
-    // /// Use separate fuse device fd for each thread
-    // CloneFd,
+    /// Use separate fuse device fd for each thread
+    CloneFd,
     /// The maximum number of idle worker threads allowed (default: -1)
     MaxIdleThread(isize),
     /// The maximum number of worker threads allowed (default: 10)
@@ -35,14 +37,15 @@ pub enum FuseOverlayFsOption {
     // TODO : look into uidmapping and gidmapping
 }
 
-impl FsOption for FuseOverlayFsOption {
-    fn defaults() -> Vec<Self> {
-        vec![]
+impl MountOption for FuseOverlayFsOption {
+    fn defaults() -> Vec<String> {
+        vec!["auto_unmount".to_string()]
     }
+}
 
-    fn incompatible(&self, _other: &MountOption<Self>) -> bool {
-        // TODO : find incompatible mount option and define compatibility matrix
-        false
+impl From<FuseOverlayFsOption> for String {
+    fn from(val: FuseOverlayFsOption) -> Self {
+        val.to_string()
     }
 }
 
@@ -82,7 +85,7 @@ impl FromStr for FuseOverlayFsOption {
             "squash_to_root" => Self::SquashToRoot,
             "static_nlink" => Self::StaticNLink,
             "noacl" => Self::NoAcl,
-            // "clone_fd" => Self::CloneFd,
+            "clone_fd" => Self::CloneFd,
             _ => {
                 return Err(std::io::Error::new(
                     std::io::ErrorKind::Unsupported,
@@ -98,7 +101,7 @@ impl Display for FuseOverlayFsOption {
             f,
             "{}",
             match self {
-                //FuseOverlayFsOption::CloneFd => "clone_fd".to_owned(),
+                FuseOverlayFsOption::CloneFd => "clone_fd".to_owned(),
                 FuseOverlayFsOption::MaxIdleThread(x) => format!("max_idle_threads={}", x),
                 FuseOverlayFsOption::MaxThread(x) => format!("max_threads={}", x),
                 FuseOverlayFsOption::AllowOther => "allow_other".to_owned(),
@@ -110,11 +113,5 @@ impl Display for FuseOverlayFsOption {
                 FuseOverlayFsOption::NoAcl => "noacl".to_owned(),
             }
         )
-    }
-}
-
-impl From<FuseOverlayFsOption> for MountOption<FuseOverlayFsOption> {
-    fn from(val: FuseOverlayFsOption) -> Self {
-        MountOption::FsSpecific(val)
     }
 }

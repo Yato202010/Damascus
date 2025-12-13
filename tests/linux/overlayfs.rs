@@ -9,8 +9,8 @@ use crate::skip;
 
 use super::{execute_test, read_only_test, read_test, setup_namespaces, write_test};
 use damascus::{
-    Filesystem, LinuxFilesystem, MountOption, OverlayFs, StackableFilesystem, StateRecovery,
-    overlay::OverlayFsOption,
+    Filesystem, OverlayFs, StackableFilesystem, StateRecovery,
+    overlay::{OverlayFsOption, RedirectDir},
 };
 use nix::unistd::{geteuid, getuid};
 use std::fs::create_dir_all;
@@ -37,6 +37,7 @@ pub fn mount_overlay_r() {
     create_dir_all(&target).unwrap();
     let mut o = OverlayFs::readonly([&lower1, &lower2].iter(), &target).unwrap();
     o.mount().unwrap();
+    assert!(o.mounted());
 
     read_only_test(&test);
 }
@@ -64,6 +65,7 @@ pub fn mount_overlay_rw() {
     create_dir_all(&work).unwrap();
     let mut o = OverlayFs::writable([lower1, lower2].iter(), &upper, &work, &target).unwrap();
     o.mount().unwrap();
+    assert!(o.mounted());
 
     write_test(&test);
 
@@ -95,6 +97,7 @@ pub fn mount_overlay_rw_on_lower() {
     create_dir_all(&work).unwrap();
     let mut o = OverlayFs::writable([lower1, lower2].iter(), upper, work, target).unwrap();
     o.mount().unwrap();
+    assert!(o.mounted());
 
     write_test(&test);
 
@@ -123,26 +126,24 @@ pub fn recover_overlay_ro_handle() {
     create_dir_all(&target).unwrap();
     let mut o = OverlayFs::readonly([&lower1, &lower2].iter(), &target).unwrap();
     if !getuid().is_root() {
-        o.set_option(OverlayFsOption::UserXattr).unwrap();
+        o.append_options([
+            OverlayFsOption::UserXattr,
+            RedirectDir::NoFollow.into(),
+            OverlayFsOption::Index(false),
+            OverlayFsOption::Metacopy(false),
+        ])
+        .unwrap();
     }
     o.mount().unwrap();
+    assert!(o.mounted());
 
     let mut o_opt = o.options().to_vec();
-    o_opt.append(&mut vec![
-        MountOption::RO,
-        MountOption::Other("relatime".to_string()),
-    ]);
+    o_opt.append(&mut vec!["ro".to_string(), "relatime".to_string()]);
 
     let reco = OverlayFs::recover(target).unwrap();
     let reco_opt = reco.options().to_vec();
     if !getuid().is_root() {
-        o_opt.append(&mut vec![
-            MountOption::FsSpecific(OverlayFsOption::RedirectDir(
-                damascus::overlay::RedirectDir::NoFollow,
-            )),
-            MountOption::FsSpecific(OverlayFsOption::Index(false)),
-            MountOption::FsSpecific(OverlayFsOption::Metacopy(false)),
-        ]);
+        o_opt.append(&mut vec![]);
     }
     for elem in o_opt {
         assert!(reco_opt.contains(&elem))
@@ -175,12 +176,10 @@ pub fn recover_overlay_rw_handle() {
     create_dir_all(&work).unwrap();
     let mut o = OverlayFs::writable([lower1, lower2].iter(), upper, work, &target).unwrap();
     o.mount().unwrap();
+    assert!(o.mounted());
 
     let mut o_opt = o.options().to_vec();
-    o_opt.append(&mut vec![
-        MountOption::RW,
-        MountOption::Other("relatime".to_string()),
-    ]);
+    o_opt.append(&mut vec!["rw".to_string(), "relatime".to_string()]);
 
     let reco = OverlayFs::recover(target).unwrap();
     let reco_opt = reco.options().to_vec();

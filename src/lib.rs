@@ -15,4 +15,5 @@ pub use common::{
     fs::{CaseInsensitive, Filesystem, StackableFilesystem, StateRecovery},
     utils::partition::PartitionID,
 };
+#[allow(unused_imports)]
 pub use os::*;
