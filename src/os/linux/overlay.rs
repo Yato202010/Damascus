@@ -151,7 +151,7 @@ impl Filesystem for OverlayFs {
                 "overlayfs is not available",
             ));
         }
-        if matches!(self.id,Some(x) if x == PartitionID::try_from(self.target.as_path())?) {
+        if self.mounted() {
             debug!("Damascus: partition already mounted");
             return Ok(self);
         }
@@ -195,7 +195,7 @@ impl Filesystem for OverlayFs {
 
     #[inline]
     fn unmount(&mut self) -> Result<&mut Self> {
-        if matches!(self.id,Some(x) if x == PartitionID::try_from(self.target.as_path())?) {
+        if self.mounted() {
             umount2(self.target.as_c_str(), MntFlags::MNT_DETACH)?;
             self.id = None;
         }

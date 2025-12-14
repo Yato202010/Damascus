@@ -119,7 +119,7 @@ impl Filesystem for UnionFsFuse {
                 "unionfs-fuse is not available",
             ));
         }
-        if matches!(self.id,Some(x) if x == PartitionID::try_from(self.target.as_path())?) {
+        if self.mounted() {
             debug!("Damascus: partition already mounted");
             return Ok(self);
         }
@@ -206,7 +206,7 @@ impl Filesystem for UnionFsFuse {
 
     #[inline]
     fn unmount(&mut self) -> Result<&mut Self> {
-        if matches!(self.id,Some(x) if x == PartitionID::try_from(self.target.as_path())?) {
+        if self.mounted() {
             let child = Command::new("fusermount")
                 .args(["-z", "-u"])
                 .arg(self.target.as_path())
