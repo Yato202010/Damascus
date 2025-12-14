@@ -9,14 +9,20 @@
 pub mod unionfs_fuse;
 #[cfg(feature = "unionfs-fuse")]
 pub use unionfs_fuse::UnionFsFuse;
+#[cfg(feature = "unionfs-fuse")]
+pub use unionfs_fuse::UnionFsFuseOption;
 #[cfg(feature = "fuse-overlayfs")]
 pub mod fuseoverlay;
 #[cfg(feature = "fuse-overlayfs")]
 pub use fuseoverlay::FuseOverlayFs;
+#[cfg(feature = "fuse-overlayfs")]
+pub use fuseoverlay::FuseOverlayFsOption;
 #[cfg(feature = "overlayfs")]
 pub mod overlay;
 #[cfg(feature = "overlayfs")]
 pub use overlay::OverlayFs;
+#[cfg(feature = "overlayfs")]
+pub use overlay::OverlayFsOption;
 
 #[allow(unused_imports)]
 pub(crate) use recover_state::{FsData, restore_fsdata};

@@ -12,9 +12,15 @@ use crate::common::fs::MountOption;
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum RedirectDir {
+    /// Redirects are enabled.
     On,
+    /// Redirects aren't created, but followed.
     Follow,
+    /// Redirects aren't created and not followed.
     NoFollow,
+    /// If “redirect_always_follow”
+    /// is enabled in the kernel/module config, this “off” translates to “follow”,
+    /// otherwise it translates to “nofollow”.
     Off,
 }
 
@@ -40,8 +46,18 @@ impl From<RedirectDir> for String {
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum FsVerity {
+    /// Whenever metacopy files specify an expected digest,
+    /// the corresponding data file must match the specified digest.
+    /// When generating a metacopy file, the verity digest will be set in it based on the source file
+    /// (if it has one).
     On,
+    /// Same as “on”, but additionally, all metacopy files must specify a digest
+    /// (or EIO is returned on open).
+    /// This means metadata copy up will only be used if the data file has fs-verity enabled,
+    /// otherwise a full copy-up is used.
     Require,
+    /// The metacopy digest is never generated or used.
+    /// This is the default if verity option isn't specified.
     Off,
 }
 
@@ -94,9 +110,17 @@ impl From<Xino> for String {
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Uuid {
+    /// UUID of overlayfs is generated and used to report a unique fsid.
+    /// UUID is stored in xattr “trusted.overlay.uuid”, making overlayfs fsid unique and persistent. This option requires an overlayfs with upper filesystem that supports xattrs.
     On,
+    /// UUID of overlayfs is null. fsid is taken from upper most filesystem.
     Null,
+    /// Same as Null but UUID of underlying layers is ignored.
     Off,
+    /// UUID is taken from xattr “trusted.overlay.uuid” if it exists.
+    /// Upgrade to “uuid=on” on first time mount of new overlay filesystem that meets the prerequisites.
+    /// Downgrade to “uuid=null” for existing overlay filesystems that were never mounted with “uuid=on”.
+    Auto,
 }
 
 impl Display for Uuid {
@@ -180,6 +204,10 @@ pub enum OverlayFsOption {
     /// It is strongly recommended that volatile mounts are only used if data written to the overlay can be
     /// recreated without significant effort.
     Volatile,
+    // /// Enable case-insensitivity
+    // CaseFold(bool),
+    // default_permissions
+    // DefaultPermissions,
     // TODO : check doc and incompatibility
     NfsExport(bool),
 }
@@ -190,6 +218,11 @@ impl FromStr for OverlayFsOption {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         if let Some((op, va)) = s.split_once('=') {
             match op {
+                /*"casefold" => match va {
+                    "1" => return Ok(Self::CaseFold(true)),
+                    "0" => return Ok(Self::CaseFold(false)),
+                    _ => {}
+                },*/
                 "redirect_dir" => match va {
                     "on" => return Ok(Self::RedirectDir(RedirectDir::On)),
                     "off" => return Ok(Self::RedirectDir(RedirectDir::Off)),
@@ -217,6 +250,7 @@ impl FromStr for OverlayFsOption {
                     "on" => return Ok(Self::Uuid(Uuid::On)),
                     "off" => return Ok(Self::Uuid(Uuid::Off)),
                     "null" => return Ok(Self::Uuid(Uuid::Null)),
+                    "auto" => return Ok(Self::Uuid(Uuid::Auto)),
                     _ => {}
                 },
                 "xino" => match va {
@@ -253,6 +287,10 @@ impl Display for OverlayFsOption {
             f,
             "{}",
             match self {
+                /*OverlayFsOption::CaseFold(o) => match o {
+                    true => "casefold=1",
+                    false => "casefold=0",
+                },*/
                 OverlayFsOption::RedirectDir(o) => match o {
                     RedirectDir::On => "redirect_dir=on",
                     RedirectDir::Follow => "redirect_dir=follow",
@@ -276,6 +314,7 @@ impl Display for OverlayFsOption {
                     Uuid::On => "uuid=on",
                     Uuid::Off => "uuid=off",
                     Uuid::Null => "uuid=null",
+                    Uuid::Auto => "uuid=auto",
                 },
                 OverlayFsOption::Xino(o) => match o {
                     Xino::On => "xino=on",

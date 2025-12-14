@@ -20,35 +20,43 @@ with filesystem from rust
 ## How to use?
 
 ```rust
+use std::path::Path;
 use damascus::{Filesystem, FuseOverlayFs, FuseOverlayFsOption, StateRecovery};
 
 fn main() {
-  let lower1 = Path::new("lowest_layer");
-  let lower2 = Path::new("lower_layer");
-  let upper = Path::new("upper_layer");
-  let work = Path::new("working");
-  let target = Path::new("mount_target");
-  let drop = true;
+    let lower1 = Path::new("lowest_layer");
+    let lower2 = Path::new("lower_layer");
+    let upper = Path::new("upper_layer");
+    let work = Path::new("working");
+    let target = Path::new("mount_target");
+    let drop = true;
 
-  // handle can be created using complex or simple interface based on need
-  // NOTE : drop control if once dropped the filesystem should be unmounted
-  let mut o = FuseOverlayFs::new([&lower1, &lower2].iter(), Some(upper), Some(work), target, drop).unwrap();
-  // or
-  let mut o = FuseOverlayFs::writable([&lower1, &lower2].iter(), upper, work, &target).unwrap();
-  // or
-  let mut o = FuseOverlayFs::readonly([&lower1, &lower2].iter(), target).unwrap();
+    // handle can be created using complex or simple interface based on need
+    // NOTE : drop control if once dropped the filesystem should be unmounted
+    let mut o = FuseOverlayFs::new(
+        [&lower1, &lower2].iter(),
+        Some(upper),
+        Some(work),
+        target,
+        drop,
+    )
+    .unwrap();
+    // or
+    o = FuseOverlayFs::writable([&lower1, &lower2].iter(), upper, work, &target).unwrap();
+    // or
+    o = FuseOverlayFs::readonly([&lower1, &lower2].iter(), target).unwrap();
 
-  o.add_option(FuseOverlayFsOption::AllowRoot).unwrap();
-  o.set_unmount_on_drop(false); // true by default
+    o.add_option(FuseOverlayFsOption::AllowRoot).unwrap();
+    o.set_scoped(false); // true by default
 
-  // once configured you can mount it
-  o.mount().unwrap();
+    // once configured you can mount it
+    o.mount().unwrap();
 
-  // if handle is lost it can be recovered from system information
-  let recovered = FuseOverlayFs::recover(target).unwrap();
+    // if handle is lost it can be recovered from system information
+    let recovered = FuseOverlayFs::recover(target).unwrap();
 
-  // and then unmount it
-  o.unmount().unwrap();
+    // and then unmount it
+    o.unmount().unwrap();
 }
 ```
 
