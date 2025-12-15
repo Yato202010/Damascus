@@ -34,7 +34,7 @@ fn main() {
     // handle can be created using complex or simple interface based on need
     // NOTE : drop control if once dropped the filesystem should be unmounted
     let mut o = FuseOverlayFs::new(
-        [&lower1, &lower2].iter(),
+        [&lower1, &lower2],
         Some(upper),
         Some(work),
         target,
@@ -42,9 +42,9 @@ fn main() {
     )
     .unwrap();
     // or
-    o = FuseOverlayFs::writable([&lower1, &lower2].iter(), upper, work, &target).unwrap();
+    o = FuseOverlayFs::writable([&lower1, &lower2], upper, work, &target).unwrap();
     // or
-    o = FuseOverlayFs::readonly([&lower1, &lower2].iter(), target).unwrap();
+    o = FuseOverlayFs::readonly([&lower1, &lower2], target).unwrap();
 
     o.add_option(FuseOverlayFsOption::AllowRoot).unwrap();
     o.set_scoped(false); // true by default
