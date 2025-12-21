@@ -11,15 +11,18 @@ env.CARGO_TERM_COLOR = "always"
 [jobs.check]
 command = ["cargo", "check", "--all-features"]
 need_stdout = false
+watch = ["README.md"]
 
 [jobs.check-all]
 command = ["cargo", "check", "--all-targets", "--all-features"]
 need_stdout = false
+watch = ["README.md"]
 
 # Run clippy on the default target
 [jobs.clippy]
 command = ["cargo", "clippy", "--all-features"]
 need_stdout = false
+watch = ["README.md"]
 
 # Run clippy on all targets
 # To disable some lints, you may change the job this way:
@@ -36,6 +39,7 @@ need_stdout = false
 [jobs.clippy-all]
 command = ["cargo", "clippy", "--all-targets", "--all-features"]
 need_stdout = false
+watch = ["README.md"]
 
 # This job lets you run
 # - all tests: bacon test
@@ -44,19 +48,23 @@ need_stdout = false
 [jobs.test]
 command = ["cargo", "test"]
 need_stdout = true
+watch = ["README.md"]
 
 [jobs.wine-test]
 command = ["cross", "test", "--target=x86_64-pc-windows-gnu"]
 need_stdout = true
+watch = ["README.md"]
 
 [jobs.test-all]
 command = ["cargo", "test-all-features"]
 need_stdout = true
+watch = ["README.md"]
 
 
 [jobs.wine-test-all]
 command = ["cross", "test-all-features", "--target", "x86_64-pc-windows-gnu"]
 need_stdout = true
+watch = ["README.md"]
 
 [jobs.nextest]
 command = [
@@ -69,10 +77,12 @@ command = [
 ]
 need_stdout = true
 analyzer = "nextest"
+watch = ["README.md"]
 
 [jobs.doc]
 command = ["cargo", "doc", "--no-deps"]
 need_stdout = false
+watch = ["README.md"]
 
 # If the doc compiles, then it opens in your browser and bacon switches
 # to the previous job
@@ -80,6 +90,7 @@ need_stdout = false
 command = ["cargo", "doc", "--no-deps", "--open"]
 need_stdout = false
 on_success = "back"                               # so that we don't open the browser at each change
+watch = ["README.md"]
 
 # You can run your application and have the result displayed in bacon,
 # if it makes sense for this crate.

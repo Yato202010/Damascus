@@ -4,6 +4,7 @@
 [![GitHub License](https://img.shields.io/github/license/Yato202010/Damascus)](https://github.com/Yato202010/Damascus/blob/main/LICENSE)
 [![docs.rs](https://img.shields.io/docsrs/damascus)](https://docs.rs/damascus/latest/damascus/)
 [![Crates.io Version](https://img.shields.io/crates/v/damascus)](https://crates.io/crates/damascus)
+[![Matrix](https://img.shields.io/badge/Matrix-Join%20Chat-000000?logo=matrix&logoColor=white)](https://matrix.to/#/#flamberge-mo:matrix.org)
 
 Damascus is a utility crate focused on providing a simple way to interact
 with filesystem from rust
@@ -22,31 +23,39 @@ with filesystem from rust
 ```rust
 use std::path::Path;
 use damascus::{Filesystem, FuseOverlayFs, FuseOverlayFsOption, StateRecovery};
+use temp_testdir::TempDir;
+use std::fs::create_dir_all;
 
 fn main() {
-    let lower1 = Path::new("lowest_layer");
-    let lower2 = Path::new("lower_layer");
-    let upper = Path::new("upper_layer");
-    let work = Path::new("working");
-    let target = Path::new("mount_target");
+    let tmp = TempDir::default().to_path_buf();
+    let lower1 = tmp.join("lowest_layer");
+    let lower2 = tmp.join("lower_layer");
+    let upper = tmp.join("upper_layer");
+    let work = tmp.join("working");
+    let target = tmp.join("mount_target");
     let drop = true;
+    create_dir_all(&lower1).unwrap();
+    create_dir_all(&lower2).unwrap();
+    create_dir_all(&upper).unwrap();
+    create_dir_all(&work).unwrap();
+    create_dir_all(&target).unwrap();
 
     // handle can be created using complex or simple interface based on need
-    // NOTE : drop control if once dropped the filesystem should be unmounted
+    // NOTE : drop control if once dropped the filesystem should be unmounted ie scoped mount
     let mut o = FuseOverlayFs::new(
         [&lower1, &lower2],
-        Some(upper),
-        Some(work),
-        target,
+        Some(&upper),
+        Some(&work),
+        &target,
         drop,
     )
     .unwrap();
     // or
     o = FuseOverlayFs::writable([&lower1, &lower2], upper, work, &target).unwrap();
     // or
-    o = FuseOverlayFs::readonly([&lower1, &lower2], target).unwrap();
+    o = FuseOverlayFs::readonly([&lower1, &lower2], &target).unwrap();
 
-    o.add_option(FuseOverlayFsOption::AllowRoot).unwrap();
+    o.add_option(FuseOverlayFsOption::CloneFd).unwrap();
     o.set_scoped(false); // true by default
 
     // once configured you can mount it

@@ -9,6 +9,13 @@
 #![deny(clippy::expect_used)]
 #![deny(clippy::panic)]
 
+#[cfg(doctest)]
+#[cfg(feature = "fuse-overlayfs")]
+mod doctest {
+    use doc_comment::doctest;
+    doctest!("../README.md");
+}
+
 mod common;
 mod os;
 pub use common::{

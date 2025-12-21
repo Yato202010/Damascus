@@ -37,6 +37,7 @@ nix = { version = "0.30", features = [
 [dev-dependencies]
 colored = "3.0"
 temp_testdir = "0.2"
+doc-comment = "0.3"
 
 [build-dependencies]
 autotools = { version = "0.2", optional = true }
