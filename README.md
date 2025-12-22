@@ -4,6 +4,7 @@
 [![GitHub License](https://img.shields.io/github/license/Yato202010/Damascus)](https://github.com/Yato202010/Damascus/blob/main/LICENSE)
 [![docs.rs](https://img.shields.io/docsrs/damascus)](https://docs.rs/damascus/latest/damascus/)
 [![Crates.io Version](https://img.shields.io/crates/v/damascus)](https://crates.io/crates/damascus)
+![Crates.io MSRV](https://img.shields.io/crates/msrv/Damascus)
 [![Matrix](https://img.shields.io/badge/Matrix-Join%20Chat-000000?logo=matrix&logoColor=white)](https://matrix.to/#/#flamberge-mo:matrix.org)
 
 Damascus is a utility crate focused on providing a simple way to interact
