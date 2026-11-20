@@ -43,7 +43,6 @@ pub struct OverlayFs {
 
 impl OverlayFs {
     #[must_use = "initialised OverlayFs handle should be used"]
-    #[inline]
     pub fn new(
         lower: impl IntoIterator<Item = impl AsRef<Path>>,
         upper: Option<impl Into<PathBuf>>,
@@ -51,14 +50,21 @@ impl OverlayFs {
         target: impl AsRef<Path>,
         drop: bool,
     ) -> Result<OverlayFs> {
+        let lower: Vec<PathBuf> = lower
+            .into_iter()
+            .map(|x| x.as_ref().to_path_buf())
+            .collect();
+        let count = lower.len() + (upper.is_some() as usize);
+        if count < 2 {
+            return Err(Error::other(
+                "overlay FileSystem needs at least 2 lower directories or 1 lower directory and 1 upper directory",
+            ));
+        }
         Ok(Self {
-            lower: lower
-                .into_iter()
-                .map(|x| x.as_ref().to_path_buf())
-                .collect(),
+            lower,
             upper: upper.map(|x| x.into()),
             work: work.map(|x| x.into()),
-            target: target.as_ref().as_cstring(),
+            target: target.as_ref().as_cstring()?,
             options: OverlayFsOption::defaults(),
             id: None,
             drop,
@@ -66,7 +72,6 @@ impl OverlayFs {
     }
 
     #[must_use = "initialised OverlayFs handle should be used"]
-    #[inline]
     pub fn readonly(
         lower: impl IntoIterator<Item = impl AsRef<Path>>,
         target: impl AsRef<Path>,
@@ -77,14 +82,14 @@ impl OverlayFs {
             .collect();
         if lower.len() < 2 {
             return Err(Error::other(
-                "overlay FileSystem need a least 2 lower directory to work",
+                "overlay FileSystem needs at least 2 lower directories to work",
             ));
         }
         Ok(OverlayFs {
             lower,
             upper: None,
             work: None,
-            target: target.as_ref().as_cstring(),
+            target: target.as_ref().as_cstring()?,
             options: OverlayFsOption::defaults(),
             id: None,
             drop: true,
@@ -92,38 +97,41 @@ impl OverlayFs {
     }
 
     #[must_use = "initialised OverlayFs handle should be used"]
-    #[inline]
     pub fn writable(
         lower: impl IntoIterator<Item = impl AsRef<Path>>,
         upper: impl AsRef<Path>,
         work: impl AsRef<Path>,
         target: impl AsRef<Path>,
     ) -> Result<OverlayFs> {
+        let lower: Vec<PathBuf> = lower
+            .into_iter()
+            .map(|x| x.as_ref().to_path_buf())
+            .collect();
+        if lower.is_empty() {
+            return Err(Error::other(
+                "overlay FileSystem needs at least 1 lower directory and one upper directory to work",
+            ));
+        }
         if PartitionID::try_from(upper.as_ref())? != PartitionID::try_from(work.as_ref())? {
             return Err(Error::other(
-                "overlay FileSystem need the upper dir and the work dir to be on the same FileSystem",
+                "overlay FileSystem needs the upper dir and the work dir to be on the same FileSystem",
             ));
         }
         Ok(OverlayFs {
-            lower: lower
-                .into_iter()
-                .map(|x| x.as_ref().to_path_buf())
-                .collect(),
+            lower,
             upper: Some(upper.as_ref().to_path_buf()),
             work: Some(work.as_ref().to_path_buf()),
-            target: target.as_ref().as_cstring(),
+            target: target.as_ref().as_cstring()?,
             options: OverlayFsOption::defaults(),
             id: None,
             drop: true,
         })
     }
 
-    #[inline]
     pub fn work(&self) -> Option<&PathBuf> {
         self.work.as_ref()
     }
 
-    #[inline]
     pub fn set_work(&mut self, work: PathBuf) -> Result<()> {
         if PartitionID::try_from(work.as_path())?
             != PartitionID::try_from(
@@ -134,7 +142,7 @@ impl OverlayFs {
             )?
         {
             return Err(Error::other(
-                "overlay FileSystem need the upper dir and the work dir to be on the same FileSystem",
+                "overlay FileSystem needs the upper dir and the work dir to be on the same FileSystem",
             ));
         }
         self.work = Some(work);
@@ -143,12 +151,11 @@ impl OverlayFs {
 }
 
 impl Filesystem for OverlayFs {
-    #[inline]
     fn mount(&mut self) -> Result<&mut Self> {
         if !Self::is_available() {
             return Err(Error::new(
                 ErrorKind::NotFound,
-                "overlayfs is not available",
+                "overlay filesystem is not available",
             ));
         }
         if self.mounted() {
@@ -184,7 +191,7 @@ impl Filesystem for OverlayFs {
             Some(data.as_bytes()),
         )
         .inspect_err(|_x| {
-            dbg!(&self);
+            debug!("Damascus: failed to mount overlay: {:?}", self);
         })?;
         self.id = Some(
             PartitionID::try_from(self.target.as_path())
@@ -193,7 +200,6 @@ impl Filesystem for OverlayFs {
         Ok(self)
     }
 
-    #[inline]
     fn unmount(&mut self) -> Result<&mut Self> {
         if self.mounted() {
             umount2(self.target.as_c_str(), MntFlags::MNT_DETACH)?;
@@ -202,35 +208,30 @@ impl Filesystem for OverlayFs {
         Ok(self)
     }
 
-    #[inline]
     fn scoped(&self) -> bool {
         self.drop
     }
 
-    #[inline]
     fn set_scoped(&mut self, drop: bool) -> &mut Self {
         self.drop = drop;
         self
     }
 
-    #[inline]
     fn id(&self) -> Option<&PartitionID> {
         self.id.as_ref()
     }
 
-    #[inline]
     fn target(&self) -> PathBuf {
         self.target.as_path().to_path_buf()
     }
 
-    #[inline]
     fn set_target(&mut self, target: impl AsRef<Path>) -> Result<&mut Self> {
         if self.id.is_some() {
             return Err(Error::other(
-                "mount point cannot be change when the FileSystem is mounted",
+                "mount point cannot be changed when the FileSystem is mounted",
             ));
         }
-        self.target = target.as_ref().as_cstring();
+        self.target = target.as_ref().as_cstring()?;
         Ok(self)
     }
 
@@ -258,19 +259,17 @@ impl Filesystem for OverlayFs {
 }
 
 impl StackableFilesystem for OverlayFs {
-    #[inline]
     fn lower(&self) -> Vec<&Path> {
         self.lower.iter().map(|x| x.as_path()).collect()
     }
 
-    #[inline]
     fn set_lower(
         &mut self,
         lower: impl IntoIterator<Item = impl AsRef<Path>>,
     ) -> Result<&mut Self> {
         if self.id.is_some() {
             return Err(Error::other(
-                "upper layer cannot be change when the FileSystem is mounted",
+                "lower layer cannot be changed when the FileSystem is mounted",
             ));
         }
         self.lower = lower
@@ -280,12 +279,10 @@ impl StackableFilesystem for OverlayFs {
         Ok(self)
     }
 
-    #[inline]
     fn upper(&self) -> Option<&Path> {
         self.upper.as_deref()
     }
 
-    #[inline]
     fn set_upper(&mut self, upper: impl Into<PathBuf>) -> Result<&mut Self> {
         let upper = upper.into();
         if PartitionID::try_from(upper.as_path())?
@@ -297,11 +294,11 @@ impl StackableFilesystem for OverlayFs {
             )?
         {
             return Err(Error::other(
-                "overlay FileSystem need the upper dir and the work dir to be on the same FileSystem",
+                "overlay FileSystem needs the upper dir and the work dir to be on the same FileSystem",
             ));
         } else if self.id.is_some() {
             return Err(Error::other(
-                "upper layer cannot be change when the FileSystem is mounted",
+                "upper layer cannot be changed when the FileSystem is mounted",
             ));
         }
         self.upper = Some(upper);
@@ -314,12 +311,13 @@ impl StateRecovery for OverlayFs {
         let path = path.as_ref();
         let data: FsData = restore_fsdata(path)?.ok_or(Error::new(
             ErrorKind::NotFound,
-            "OverlayFs not found at mount point : ".to_string() + &path.to_string_lossy(),
+            "Failed to recover overlay filesystem handle at: ".to_string()
+                + &path.to_string_lossy(),
         ))?;
         let mut lower = vec![];
         let mut upper = None;
         let mut work = None;
-        let target = path.as_cstring();
+        let target = path.as_cstring()?;
         let options = data
             .options()
             .iter()
@@ -365,7 +363,6 @@ impl StateRecovery for OverlayFs {
 }
 
 impl Drop for OverlayFs {
-    #[inline]
     fn drop(&mut self) {
         if self.drop
             && let Err(err) = self.unmount()

@@ -40,7 +40,6 @@ pub struct FuseOverlayFs {
 
 impl FuseOverlayFs {
     #[must_use = "initialised FuseOverlayFs handle should be used"]
-    #[inline]
     /// Initialise a new FuseOverlayFs handle
     pub fn new(
         lower: impl IntoIterator<Item = impl AsRef<Path>>,
@@ -53,16 +52,16 @@ impl FuseOverlayFs {
             .into_iter()
             .map(|x| x.as_ref().to_path_buf())
             .collect();
-        if lower.len() < 2 {
+        if lower.is_empty() {
             return Err(Error::other(
-                "overlay FileSystem need a least 2 lower directory to work",
+                "fuse-overlay FileSystem needs at least 1 lower directory to work",
             ));
         }
         Ok(Self {
             lower,
             upper: upper.map(|x| x.into()),
             work: work.map(|x| x.into()),
-            target: target.as_ref().as_cstring(),
+            target: target.as_ref().as_cstring()?,
             options: FuseOverlayFsOption::defaults(),
             id: None,
             drop,
@@ -70,7 +69,6 @@ impl FuseOverlayFs {
     }
 
     #[must_use = "initialised FuseOverlayFs handle should be used"]
-    #[inline]
     /// Initialise a new readonly FuseOverlayFs handle
     pub fn readonly(
         lower: impl IntoIterator<Item = impl AsRef<Path>>,
@@ -80,16 +78,16 @@ impl FuseOverlayFs {
             .into_iter()
             .map(|x| x.as_ref().to_path_buf())
             .collect();
-        if lower.len() < 2 {
+        if lower.is_empty() {
             return Err(Error::other(
-                "overlay FileSystem need a least 2 lower directory to work",
+                "fuse-overlay FileSystem needs at least 1 lower directory to work",
             ));
         }
         Ok(FuseOverlayFs {
             lower,
             upper: None,
             work: None,
-            target: target.as_ref().as_cstring(),
+            target: target.as_ref().as_cstring()?,
             options: FuseOverlayFsOption::defaults(),
             id: None,
             drop: true,
@@ -97,7 +95,6 @@ impl FuseOverlayFs {
     }
 
     #[must_use = "initialised FuseOverlayFs handle should be used"]
-    #[inline]
     /// Initialise a new writable FuseOverlayFs handle
     pub fn writable(
         lower: impl IntoIterator<Item = impl AsRef<Path>>,
@@ -105,31 +102,35 @@ impl FuseOverlayFs {
         work: impl AsRef<Path>,
         target: impl AsRef<Path>,
     ) -> Result<FuseOverlayFs> {
+        let lower: Vec<PathBuf> = lower
+            .into_iter()
+            .map(|x| x.as_ref().to_path_buf())
+            .collect();
+        if lower.is_empty() {
+            return Err(Error::other(
+                "fuse-overlay FileSystem needs at least 1 lower directory and one upper directory to work",
+            ));
+        }
         if PartitionID::try_from(upper.as_ref())? != PartitionID::try_from(work.as_ref())? {
             return Err(Error::other(
-                "fuse-overlay FileSystem need the upper dir and the work dir to be on the same FileSystem",
+                "fuse-overlay FileSystem needs the upper dir and the work dir to be on the same FileSystem",
             ));
         }
         Ok(FuseOverlayFs {
-            lower: lower
-                .into_iter()
-                .map(|x| x.as_ref().to_path_buf())
-                .collect(),
+            lower,
             upper: Some(upper.as_ref().to_path_buf()),
             work: Some(work.as_ref().to_path_buf()),
-            target: target.as_ref().as_cstring(),
+            target: target.as_ref().as_cstring()?,
             options: FuseOverlayFsOption::defaults(),
             id: None,
             drop: true,
         })
     }
 
-    #[inline]
     pub fn work(&self) -> Option<&PathBuf> {
         self.work.as_ref()
     }
 
-    #[inline]
     pub fn set_work(&mut self, work: PathBuf) -> Result<()> {
         if PartitionID::try_from(work.as_path())?
             != PartitionID::try_from(
@@ -140,7 +141,7 @@ impl FuseOverlayFs {
             )?
         {
             return Err(Error::other(
-                "fuse-overlay FileSystem need the upper dir and the work dir to be on the same FileSystem",
+                "fuse-overlay FileSystem needs the upper dir and the work dir to be on the same FileSystem",
             ));
         }
         self.work = Some(work);
@@ -149,13 +150,11 @@ impl FuseOverlayFs {
 }
 
 impl Filesystem for FuseOverlayFs {
-    #[inline]
     fn mount(&mut self) -> Result<&mut Self> {
-        #[cfg(not(feature = "fuse-overlayfs-vendored"))]
         if !Self::is_available() {
             return Err(Error::new(
                 ErrorKind::NotFound,
-                "fuse-overlayfs is not available",
+                "fuse-overlay filesystem is not available",
             ));
         }
         if self.mounted() {
@@ -195,22 +194,30 @@ impl Filesystem for FuseOverlayFs {
                     memfd::{MFdFlags, memfd_create},
                     wait::waitpid,
                 },
-                unistd::{ForkResult, fexecve, fork, write},
+                unistd::{ForkResult, close, fexecve, fork, write},
             };
             use std::ffi::CStr;
 
-            // init embedded fuse overlay version 1.10 or later since [ 1.7, 1.9 ] doesn't support mounting on top
+            // init embedded fuse overlay filesystem version 1.10 or later since [ 1.7, 1.9 ] doesn't support mounting on top
             // of the base directory
             let byte = include_bytes!(concat!("../../../", env!("FUSE-OVERLAYFS-BIN")));
             let mem = memfd_create(c"fuse-overlayfs", MFdFlags::empty())?;
             write(&mem, byte)?;
-            let env: Vec<&CStr> = vec![];
+            let env: Vec<CString> = std::env::vars_os()
+                .filter_map(|(k, v)| {
+                    let s = format!("{}={}", k.to_string_lossy(), v.to_string_lossy());
+                    CString::new(s).ok()
+                })
+                .collect();
+            let env_cstr: Vec<&CStr> = env.iter().map(|c| c.as_c_str()).collect();
             match unsafe { fork() } {
                 Ok(ForkResult::Parent { child, .. }) => {
                     waitpid(child, None)?;
+                    // Close the memfd in the parent to prevent leaking the file descriptor
+                    let _ = close(mem);
                 }
                 Ok(ForkResult::Child) => {
-                    fexecve(mem, args, &env)?;
+                    fexecve(mem, args, &env_cstr)?;
                 }
                 Err(_) => {
                     return Err(Error::new(
@@ -222,13 +229,34 @@ impl Filesystem for FuseOverlayFs {
         }
         #[cfg(not(feature = "fuse-overlayfs-vendored"))]
         {
-            let options: Vec<&str> = args.iter().skip(1).map(|x| x.to_str().unwrap()).collect();
+            let options: Vec<&str> = args
+                .iter()
+                .skip(1)
+                .map(|x| {
+                    x.to_str().map_err(|_| {
+                        Error::new(
+                            ErrorKind::InvalidInput,
+                            "fuse-overlayfs argument contains invalid UTF-8",
+                        )
+                    })
+                })
+                .collect::<std::result::Result<Vec<&str>, Error>>()?;
             let output = Command::new("fuse-overlayfs")
                 .args(options)
                 .spawn()
-                .unwrap()
+                .map_err(|e| {
+                    Error::new(
+                        ErrorKind::PermissionDenied,
+                        format!("Failed to spawn fuse-overlayfs: {}", e),
+                    )
+                })?
                 .wait_with_output()
-                .unwrap();
+                .map_err(|e| {
+                    Error::new(
+                        ErrorKind::PermissionDenied,
+                        format!("Failed to wait for fuse-overlayfs: {}", e),
+                    )
+                })?;
             if !output.status.success() {
                 error!(
                     "Damascus: unable to mount {:?}\n{}",
@@ -249,7 +277,6 @@ impl Filesystem for FuseOverlayFs {
         Ok(self)
     }
 
-    #[inline]
     fn unmount(&mut self) -> Result<&mut Self> {
         if self.mounted() {
             let child = Command::new("fusermount")
@@ -273,42 +300,42 @@ impl Filesystem for FuseOverlayFs {
         Ok(self)
     }
 
-    #[inline]
     fn scoped(&self) -> bool {
         self.drop
     }
 
-    #[inline]
     fn set_scoped(&mut self, drop: bool) -> &mut Self {
         self.drop = drop;
         self
     }
 
-    #[inline]
     fn id(&self) -> Option<&PartitionID> {
         self.id.as_ref()
     }
 
-    #[inline]
     fn target(&self) -> PathBuf {
         self.target.as_path().to_path_buf()
     }
 
-    #[inline]
     fn set_target(&mut self, target: impl AsRef<Path>) -> Result<&mut Self> {
         if self.id.is_some() {
             return Err(Error::other(
-                "mount point cannot be change when the FileSystem is mounted",
+                "mount point cannot be changed when the FileSystem is mounted",
             ));
         }
-        self.target = target.as_ref().as_cstring();
+        self.target = target.as_ref().as_cstring()?;
         Ok(self)
     }
 
     fn is_available() -> bool {
         #[cfg(feature = "fuse-overlayfs-vendored")]
         {
-            true
+            use std::process::Stdio;
+            Command::new("fusermount")
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status()
+                .is_ok()
         }
         #[cfg(not(feature = "fuse-overlayfs-vendored"))]
         {
@@ -337,19 +364,17 @@ impl Filesystem for FuseOverlayFs {
 }
 
 impl StackableFilesystem for FuseOverlayFs {
-    #[inline]
     fn lower(&self) -> Vec<&Path> {
         self.lower.iter().map(|x| x.as_path()).collect()
     }
 
-    #[inline]
     fn set_lower(
         &mut self,
         lower: impl IntoIterator<Item = impl AsRef<Path>>,
     ) -> Result<&mut Self> {
         if self.id.is_some() {
             return Err(Error::other(
-                "upper layer cannot be change when the FileSystem is mounted",
+                "lower layer cannot be changed when the FileSystem is mounted",
             ));
         }
         self.lower = lower
@@ -359,12 +384,10 @@ impl StackableFilesystem for FuseOverlayFs {
         Ok(self)
     }
 
-    #[inline]
     fn upper(&self) -> Option<&Path> {
         self.upper.as_deref()
     }
 
-    #[inline]
     fn set_upper(&mut self, upper: impl Into<PathBuf>) -> Result<&mut Self> {
         let upper = upper.into();
         if PartitionID::try_from(upper.as_path())?
@@ -376,11 +399,11 @@ impl StackableFilesystem for FuseOverlayFs {
             )?
         {
             return Err(Error::other(
-                "fuse-overlay FileSystem need the upper dir and the work dir to be on the same FileSystem",
+                "fuse-overlay FileSystem needs the upper dir and the work dir to be on the same FileSystem",
             ));
         } else if self.id.is_some() {
             return Err(Error::other(
-                "upper layer cannot be change when the FileSystem is mounted",
+                "upper layer cannot be changed when the FileSystem is mounted",
             ));
         }
         self.upper = Some(upper);
@@ -391,65 +414,68 @@ impl StackableFilesystem for FuseOverlayFs {
 impl StateRecovery for FuseOverlayFs {
     fn recover<P: AsRef<Path>>(path: P) -> Result<Self> {
         let path = path.as_ref();
-        let mut cmd = Command::new("ps");
-        cmd.args(["--no-headers", "x", "-o", "args=", "-C", "fuse-overlayfs"]);
-        let out = cmd.output()?;
-        if !out.status.success() {
-            error!(
-                "Damascus: unable to recover handle at {:?}\n{}",
-                path,
-                String::from_utf8_lossy(&out.stderr)
-            );
-            return Err(Error::other("Failed to recover handle"));
-        }
-        for line in String::from_utf8_lossy(&out.stdout).lines() {
-            if let Some(x) = line.strip_prefix("fuse-overlayfs") {
-                let mut args = x.split(" ");
+        let proc_dir = std::path::Path::new("/proc");
+        for entry in std::fs::read_dir(proc_dir)? {
+            let entry = entry?;
+            let pid_str = entry.file_name().to_string_lossy().to_string();
+            if pid_str.parse::<u32>().is_err() {
+                continue;
+            }
+            let cmdline_path = entry.path().join("cmdline");
+            let cmdline = match std::fs::read_to_string(&cmdline_path) {
+                Ok(s) => s,
+                Err(_) => continue,
+            };
+            let args: Vec<&str> = cmdline.split('\0').filter(|s| !s.is_empty()).collect();
+            if args
+                .first()
+                .map(|s| s.contains("fuse-overlayfs"))
+                .unwrap_or(false)
+            {
+                let mut iter = args.iter().skip(1); // skip the binary name
                 let mut options = vec![];
                 let mut lower = vec![];
                 let mut upper = None;
                 let mut work = None;
-                while let Some(elem) = args.next() {
-                    if elem == " " {
-                        continue;
-                    } else if elem == "-o" {
-                        if let Some(elem) = args.next() {
-                            let mut elem: Vec<String> = elem
-                                .split(',')
-                                .filter_map(|x| {
-                                    if let Some(x) = x.strip_prefix("lowerdir=") {
-                                        let mut x = x.split(':').map(PathBuf::from).collect();
-                                        lower.append(&mut x);
-                                        None
-                                    } else if let Some(x) = x.strip_prefix("upperdir=") {
-                                        upper = Some(PathBuf::from(x));
-                                        None
-                                    } else if let Some(x) = x.strip_prefix("workdir=") {
-                                        work = Some(PathBuf::from(x));
-                                        None
-                                    } else {
-                                        Some(x.to_string())
+                let mut target_path: Option<PathBuf> = None;
+                while let Some(elem) = iter.next() {
+                    if *elem == "-o" {
+                        if let Some(opts) = iter.next() {
+                            for part in opts.split(',') {
+                                if let Some(x) = part.strip_prefix("lowerdir=") {
+                                    for p in x.split(':') {
+                                        lower.push(PathBuf::from(p));
                                     }
-                                })
-                                .collect();
-                            options.append(&mut elem);
+                                } else if let Some(x) = part.strip_prefix("upperdir=") {
+                                    upper = Some(PathBuf::from(x));
+                                } else if let Some(x) = part.strip_prefix("workdir=") {
+                                    work = Some(PathBuf::from(x));
+                                } else {
+                                    options.push(part.to_string());
+                                }
+                            }
                         }
-                    } else if let Some(target) = Some(CString::new(elem)?)
-                        && target.as_path() == path
-                    {
-                        return Ok(Self {
-                            lower,
-                            upper,
-                            work,
-                            target,
-                            options,
-                            id: Some(
-                                PartitionID::try_from(path)
-                                    .map_err(|_| Error::other("unable to get PartitionID"))?,
-                            ),
-                            drop: true,
-                        });
+                    } else {
+                        // This should be the target mount point
+                        target_path = Some(PathBuf::from(*elem));
                     }
+                }
+                if let Some(target) = target_path
+                    && target == path
+                {
+                    let target_cstring = path.as_cstring()?;
+                    return Ok(Self {
+                        lower,
+                        upper,
+                        work,
+                        target: target_cstring,
+                        options,
+                        id: Some(
+                            PartitionID::try_from(path)
+                                .map_err(|_| Error::other("unable to get PartitionID"))?,
+                        ),
+                        drop: true,
+                    });
                 }
             }
         }
@@ -462,7 +488,6 @@ impl StateRecovery for FuseOverlayFs {
 }
 
 impl Drop for FuseOverlayFs {
-    #[inline]
     fn drop(&mut self) {
         if self.drop
             && let Err(err) = self.unmount()

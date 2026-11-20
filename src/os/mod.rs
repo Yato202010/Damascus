@@ -33,10 +33,19 @@ pub(crate) trait OsStrExt {
 }
 #[cfg(target_os = "windows")]
 impl OsStrExt for OsStr {
-    #[allow(clippy::transmute_ptr_to_ptr)]
     fn from_bytes(b: &[u8]) -> &Self {
-        use std::mem;
-        unsafe { mem::transmute(b) }
+        // On Windows, OsStr is UTF-16 encoded. The bytes passed here are UTF-8
+        // (from CStr/CString), so we convert via lossy string to get a valid OsStr.
+        // This avoids the unsound transmute that assumed UTF-8 == UTF-16.
+        use std::borrow::Cow;
+        match std::ffi::OsString::from_encoded_bytes(b.to_vec()) {
+            Ok(os) => Cow::Owned(os).as_ref(),
+            Err(_) => {
+                // Fallback: treat as UTF-8 lossy
+                let s = String::from_utf8_lossy(b);
+                Cow::Borrowed(OsStr::new(s.as_ref())).as_ref()
+            }
+        }
     }
     fn as_bytes(&self) -> &[u8] {
         self.as_encoded_bytes()
@@ -56,14 +65,12 @@ pub(crate) trait AsPath {
 }
 
 impl AsPath for CString {
-    #[inline]
     fn as_path(&self) -> &Path {
         OsStr::from_bytes(self.to_bytes()).as_ref()
     }
 }
 
 impl AsPath for CStr {
-    #[inline]
     fn as_path(&self) -> &Path {
         OsStr::from_bytes(self.to_bytes()).as_ref()
     }
@@ -71,12 +78,11 @@ impl AsPath for CStr {
 
 #[allow(dead_code)]
 pub(crate) trait AsCString {
-    fn as_cstring(&self) -> CString;
+    fn as_cstring(&self) -> std::io::Result<CString>;
 }
 
 impl AsCString for Path {
-    #[inline]
-    fn as_cstring(&self) -> CString {
+    fn as_cstring(&self) -> std::io::Result<CString> {
         let int = {
             #[cfg(target_family = "unix")]
             {
@@ -88,15 +94,14 @@ impl AsCString for Path {
             }
         };
 
-        // TODO : remove unwrap if possible
-        #[allow(clippy::unwrap_used)]
-        CString::new(int).unwrap()
+        CString::new(int).map_err(|_| {
+            std::io::Error::new(std::io::ErrorKind::InvalidInput, "path contains null bytes")
+        })
     }
 }
 
 impl AsCString for PathBuf {
-    #[inline]
-    fn as_cstring(&self) -> CString {
+    fn as_cstring(&self) -> std::io::Result<CString> {
         self.as_path().as_cstring()
     }
 }

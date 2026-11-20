@@ -5,13 +5,26 @@
 //     http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
-use std::path::Path;
+use std::{fmt, path::Path};
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 /// Representation of a partition unique identifier
 ///
 /// NOTE : on windows this will return a u64 even if the FileSystem use u32
 pub struct PartitionID(u64);
+
+impl PartitionID {
+    #[must_use]
+    pub fn as_u64(&self) -> u64 {
+        self.0
+    }
+}
+
+impl fmt::Display for PartitionID {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "PartitionID({})", self.0)
+    }
+}
 
 impl TryFrom<&Path> for PartitionID {
     type Error = std::io::Error;
@@ -37,6 +50,10 @@ impl TryFrom<&Path> for PartitionID {
 
             let mut lpvolumeserialnumber = u32::MAX;
             unsafe {
+                // Safety: lpvolumeserialnumber is a valid mutable reference to a u32.
+                // GetVolumeInformationW expects a pointer to a DWORD (u32) and will
+                // write the volume serial number. The HSTRING is valid for the call's
+                // duration, and the output parameters are either None or valid pointers.
                 GetVolumeInformationW(
                     &HSTRING::from(path),
                     None,

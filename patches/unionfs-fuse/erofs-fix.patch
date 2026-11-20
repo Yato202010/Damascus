@@ -1,0 +1,35 @@
+From unionfs-fuse fix for EROFS error code
+When no writable branch is found on a read-only mount, return EROFS
+instead of EACCES so that callers correctly identify the filesystem
+as read-only.
+
+diff --git a/src/findbranch.c b/src/findbranch.c
+index 1234567..abcdefg 100644
+--- a/src/findbranch.c
++++ b/src/findbranch.c
+@@ -203,7 +203,7 @@ static int __find_rw_branch_cutlast(const char *path, int rw_hint) {
+ 	// no writable branch found, we must return an error
+ 	if (branch_rw < 0) {
+ 		branch = -1;
+-		errno = EACCES;
++		errno = EROFS;
+ 		goto out;
+ 	}
+ 
+@@ -256,7 +256,7 @@ int find_rw_branch_cow(const char *path) {
+ 	int branch_rw = find_lowest_rw_branch(branch_rorw);
+ 	if (branch_rw < 0) {
+ 		// no writable branch found
+-		errno = EACCES;
++		errno = EROFS;
+ 		RETURN(-1);
+ 	}
+ 
+@@ -306,7 +306,7 @@ int find_rw_branch_cow_recursive(const char *path) {
+ 	int branch_rw = find_lowest_rw_branch(branch_rorw + 1);
+ 	if (branch_rw < 0) {
+ 		// no writable branch found
+-		errno = EACCES;
++		errno = EROFS;
+ 		RETURN(-1);
+ 	}

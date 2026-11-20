@@ -17,7 +17,7 @@ use std::{
 
 use nix::{
     errno::Errno,
-    sched::{unshare, CloneFlags},
+    sched::{CloneFlags, unshare},
     sys::stat::Mode,
     unistd::getuid,
 };
@@ -37,10 +37,10 @@ pub mod overlayfs;
 pub fn register_test() {
     #[cfg(feature = "unionfs-fuse")]
     register_tests!(
-        // WARN : currently this filesystem return Ernno::PermissionDenierd = 13 instead of
-        // Ernno::EROFS = 30 which is clearly wrong but why !?
         unionfs_fuse::mount_unionfs_fuse_r,
         unionfs_fuse::mount_unionfs_fuse_rw,
+        unionfs_fuse::recover_unionfs_ro_handle,
+        unionfs_fuse::recover_unionfs_rw_handle,
         // WARN : mounting on top of lower dir is not permitted for now it freeze
         //unionfs_fuse::mount_unionfs_fuse_rw_on_lower
     );
@@ -142,9 +142,5 @@ fn setup_namespaces() -> Result<(), Errno> {
         });
         unsafe { ST_ERR = err };
     }
-    if let Some(e) = err {
-        Err(e)
-    } else {
-        Ok(())
-    }
+    if let Some(e) = err { Err(e) } else { Ok(()) }
 }

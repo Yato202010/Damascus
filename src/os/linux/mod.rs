@@ -30,11 +30,7 @@ pub(crate) use recover_state::{FsData, restore_fsdata};
 /// Provide utility to recover filesystem state from the information provided by the system
 #[allow(dead_code)]
 mod recover_state {
-    use std::{ffi::CStr, io::Result, path::Path};
-
-    use nix::libc::{getmntent, setmntent};
-
-    use crate::AsPath;
+    use std::{io::Result, path::Path};
 
     #[derive(Debug)]
     pub struct FsData {
@@ -47,29 +43,49 @@ mod recover_state {
         }
     }
 
-    /// Retrieve filesystem data from system information
+    /// Retrieve filesystem data from system information by reading /proc/self/mounts
     pub(crate) fn restore_fsdata<P: AsRef<Path>>(path: P) -> Result<Option<FsData>> {
-        let fd = unsafe { setmntent(c"/etc/mtab".as_ptr(), "r".as_ptr() as *const i8) };
-        if fd.is_null() {
-            return Err(std::io::Error::other("Cannot setmntent"));
-        }
-
-        let mut cont = true;
-        while cont {
-            let fs = unsafe { getmntent(fd).as_ref() };
-            if let Some(fs) = fs {
-                let target = unsafe { CStr::from_ptr(fs.mnt_dir) };
-                if target.as_path() == path.as_ref() {
-                    let opts = unsafe { CStr::from_ptr(fs.mnt_opts) };
-                    let option = opts
-                        .to_string_lossy()
+        let path = path.as_ref();
+        let content = std::fs::read_to_string("/proc/self/mounts")?;
+        for line in content.lines() {
+            let first_ws = match line.find(char::is_whitespace) {
+                Some(pos) => pos,
+                None => continue,
+            };
+            let mp_start = line[first_ws..]
+                .find(|c: char| !c.is_whitespace())
+                .map(|i| first_ws + i)
+                .unwrap_or(first_ws + 1);
+            let rest = &line[mp_start..];
+            let mut fields_from_end = 0;
+            let mut mp_end = rest.len();
+            let bytes = rest.as_bytes();
+            let mut i = bytes.len();
+            while i > 0 && fields_from_end < 4 {
+                if bytes[i - 1].is_ascii_whitespace() {
+                    fields_from_end += 1;
+                } else {
+                    mp_end = i - 1;
+                }
+                i -= 1;
+            }
+            while mp_end > 0 && bytes[mp_end].is_ascii_whitespace() {
+                mp_end -= 1;
+            }
+            let mountpoint_str = &rest[..=mp_end];
+            let mountpoint = Path::new(mountpoint_str);
+            if mountpoint == path {
+                let after_mp = &rest[mp_end + 1..];
+                let after_mp_fields: Vec<&str> = after_mp.split_whitespace().collect();
+                let options = if after_mp_fields.len() >= 2 {
+                    after_mp_fields[1]
                         .split(',')
                         .map(|x| x.to_string())
-                        .collect();
-                    return Ok(Some(FsData { options: option }));
-                }
-            } else {
-                cont = false
+                        .collect()
+                } else {
+                    Vec::new()
+                };
+                return Ok(Some(FsData { options }));
             }
         }
         Ok(None)

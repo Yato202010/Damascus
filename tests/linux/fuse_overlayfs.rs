@@ -17,7 +17,7 @@ use temp_testdir::TempDir;
 
 pub fn mount_fuse_overlay_r() {
     if !FuseOverlayFs::is_available() {
-        skip!("OverlayFs is not availible");
+        skip!("FuseOverlayFs is not available");
         return;
     }
     if geteuid().is_root() {
@@ -40,7 +40,7 @@ pub fn mount_fuse_overlay_r() {
 
 pub fn mount_fuse_overlay_rw() {
     if !FuseOverlayFs::is_available() {
-        skip!("OverlayFs is not availible");
+        skip!("FuseOverlayFs is not available");
         return;
     }
     if geteuid().is_root() {
@@ -72,7 +72,7 @@ pub fn mount_fuse_overlay_rw() {
 
 pub fn mount_fuse_overlay_rw_on_lower() {
     if !FuseOverlayFs::is_available() {
-        skip!("OverlayFs is not availible");
+        skip!("FuseOverlayFs is not available");
         return;
     }
     if geteuid().is_root() {
